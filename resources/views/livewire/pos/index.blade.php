@@ -3,6 +3,7 @@
 use Livewire\Volt\Component;
 use Livewire\Attributes\Layout;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Stock;
 
 new #[Layout('components.layouts.app')] class extends Component {
@@ -28,50 +29,97 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function scanOrSearch()
     {
         $this->notFoundMessage = '';
+        $term = trim($this->search);
 
-        if (empty(trim($this->search))) {
+        if (empty($term)) {
             return;
         }
 
-        $product = Product::where('barcode', $this->search)->orWhere('sku', $this->search)->first();
+        // 1. CARI DI TABEL VARIAN DULU (Karena yang biasa discan adalah barcode varian fisik)
+        $variant = ProductVariant::with('product')
+            ->where('barcode', $term)
+            ->orWhere('sku', $term)
+            ->first();
 
-        if (!$product) {
-            $this->notFoundMessage = 'Produk tidak ditemukan: ' . $this->search;
+        if ($variant) {
+            $product = $variant->product;
+
+            if ($product->is_active == 0) {
+                $this->notFoundMessage = "Produk '{$product->name}' masih bersifat draf dan tidak bisa dipesan.";
+                $this->search = '';
+                return;
+            }
+
+            // Jika ketemu, masukkan Induk dan Variannya ke keranjang
+            $this->addToCart($product, $variant);
             $this->search = '';
             return;
         }
 
-        $this->addToCart($product);
+        // 2. JIKA TIDAK KETEMU DI VARIAN, CARI DI TABEL INDUK (Untuk Produk Tunggal seperti Topi/Stiker)
+        $product = Product::where('barcode', $term)->orWhere('sku', $term)->first();
+
+        if (!$product) {
+            $this->notFoundMessage = 'Produk tidak ditemukan: ' . $term;
+            $this->search = '';
+            return;
+        }
+
+        if ($product->is_active == 0) {
+            $this->notFoundMessage = "Produk '{$product->name}' masih bersifat draf dan tidak bisa dipesan.";
+            $this->search = '';
+            return;
+        }
+
+        // Cegah kasir memasukkan Induk produk bervarian tanpa memilih ukurannya
+        if ($product->has_variants) {
+            $this->notFoundMessage = "Ini produk bervarian. Harap scan barcode/SKU ukurannya secara spesifik.";
+            $this->search = '';
+            return;
+        }
+
+        // Masukkan Produk Tunggal ke keranjang
+        $this->addToCart($product, null);
         $this->search = '';
     }
 
-    public function addToCart(Product $product)
+    // Fungsi addToCart sekarang menerima 2 parameter (Induk dan Anak)
+    public function addToCart(Product $product, ?ProductVariant $variant = null)
     {
+        $variantId = $variant ? $variant->id : null;
+
+        // Buat ID unik untuk keranjang (contoh: "12-single" atau "12-5") supaya Kaos M & Kaos L tidak menyatu
+        $cartKey = $product->id . '-' . ($variantId ?? 'single');
+
+        // Cari stok dengan mempertimbangkan variannya
         $stock = Stock::where('product_id', $product->id)
             ->where('outlet_id', $this->outletId)
-            ->whereNull('product_variant_id')
+            ->where('product_variant_id', $variantId)
             ->first();
 
         $availableStock = $stock ? $stock->quantity : 0;
 
+        // Nama untuk di struk (Contoh: "Bikini (S - Kuning)")
+        $itemName = $variant ? "{$product->name} ({$variant->size} - {$variant->color})" : $product->name;
+
         if ($availableStock <= 0) {
-            $this->notFoundMessage = "Stok {$product->name} habis di outlet ini.";
+            $this->notFoundMessage = "Stok {$itemName} habis di outlet ini.";
             return;
         }
 
-        if (isset($this->cart[$product->id])) {
-            $newQty = $this->cart[$product->id]['quantity'] + 1;
+        if (isset($this->cart[$cartKey])) {
+            $newQty = $this->cart[$cartKey]['quantity'] + 1;
 
             if ($newQty > $availableStock) {
-                $this->notFoundMessage = "Stok {$product->name} hanya tersisa {$availableStock}.";
+                $this->notFoundMessage = "Stok {$itemName} hanya tersisa {$availableStock}.";
                 return;
             }
 
-            $this->cart[$product->id]['quantity'] = $newQty;
+            $this->cart[$cartKey]['quantity'] = $newQty;
         } else {
-            $this->cart[$product->id] = [
-                'name' => $product->name,
-                'sku' => $product->sku,
+            $this->cart[$cartKey] = [
+                'name' => $itemName,
+                'sku' => $variant ? $variant->sku : $product->sku,
                 'image' => $product->image ?? null,
                 'price' => $product->sell_price,
                 'quantity' => 1,
@@ -82,44 +130,40 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->saveCartToSession();
     }
 
-    public function increaseQty($productId)
+    // Fungsi Plus/Minus sekarang mencari berdasarkan $cartKey, bukan $productId lagi
+    public function increaseQty($cartKey)
     {
-        if (!isset($this->cart[$productId]))
+        if (!isset($this->cart[$cartKey]))
             return;
 
-        $item = $this->cart[$productId];
+        $item = $this->cart[$cartKey];
         if ($item['quantity'] + 1 > $item['stock']) {
             $this->notFoundMessage = "Stok {$item['name']} hanya tersisa {$item['stock']}.";
             return;
         }
-        $this->cart[$productId]['quantity']++;
-
+        $this->cart[$cartKey]['quantity']++;
         $this->saveCartToSession();
     }
 
-    public function decreaseQty($productId)
+    public function decreaseQty($cartKey)
     {
-        if (!isset($this->cart[$productId]))
+        if (!isset($this->cart[$cartKey]))
             return;
 
-        if ($this->cart[$productId]['quantity'] > 1) {
-            $this->cart[$productId]['quantity']--;
+        if ($this->cart[$cartKey]['quantity'] > 1) {
+            $this->cart[$cartKey]['quantity']--;
         } else {
-            unset($this->cart[$productId]);
+            unset($this->cart[$cartKey]);
         }
-
         $this->saveCartToSession();
     }
 
-    public function removeItem($productId)
+    public function removeItem($cartKey)
     {
-        unset($this->cart[$productId]);
-
-        // Simpan saat barang dihapus dari tong sampah
+        unset($this->cart[$cartKey]);
         $this->saveCartToSession();
     }
 
-    // Fungsi tambahan untuk membatalkan seluruh transaksi jika diperlukan
     public function clearCart()
     {
         $this->cart = [];
@@ -140,15 +184,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         if (count($this->cart) === 0)
             return;
-
         $this->redirect('/pos/checkout', navigate: true);
-    }
-
-    public function with(): array
-    {
-        return [
-            'outlet' => \App\Models\Outlet::find($this->outletId),
-        ];
     }
 };
 ?>
@@ -165,9 +201,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </svg>
                 Mesin Kasir
             </h1>
-            <p class="text-sm text-gray-500 mt-1">Outlet aktif: <span
-                    class="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{{ $outlet->name ?? '-' }}</span>
-            </p>
+            <p class="text-sm text-gray-500 mt-1">Kelola transaksi penjualan</p>
         </div>
     </div>
 
@@ -200,7 +234,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @endif
             </div>
 
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex-1 flex flex-col overflow-hidden">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
                 <div class="overflow-x-auto overflow-y-auto flex-1 p-0">
                     <table class="w-full text-left min-w-[700px]">
                         <thead class="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-200">
@@ -213,7 +247,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            @forelse($cart as $productId => $item)
+                            @forelse($cart as $cartKey => $item)
                                 <tr class="hover:bg-gray-50/50 transition">
                                     <td class="px-4 md:px-6 py-3 md:py-4">
                                         <div class="flex items-center gap-3 md:gap-4">
@@ -248,11 +282,13 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     <td class="px-4 py-3 md:py-4">
                                         <div
                                             class="flex items-center justify-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit mx-auto">
-                                            <button wire:click="decreaseQty({{ $productId }})"
+                                            <!-- PERBAIKAN: Gunakan '{{ $cartKey }}' dengan tanda kutip -->
+                                            <button wire:click="decreaseQty('{{ $cartKey }}')"
                                                 class="w-7 h-7 md:w-8 md:h-8 rounded-md bg-white hover:bg-gray-100 shadow-sm text-gray-600 font-bold transition flex items-center justify-center">-</button>
                                             <span
                                                 class="w-8 md:w-10 text-center font-bold text-gray-900 text-sm">{{ $item['quantity'] }}</span>
-                                            <button wire:click="increaseQty({{ $productId }})"
+                                            <!-- PERBAIKAN: Gunakan '{{ $cartKey }}' dengan tanda kutip -->
+                                            <button wire:click="increaseQty('{{ $cartKey }}')"
                                                 class="w-7 h-7 md:w-8 md:h-8 rounded-md bg-white hover:bg-gray-100 shadow-sm text-gray-600 font-bold transition flex items-center justify-center">+</button>
                                         </div>
                                     </td>
@@ -261,7 +297,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         Rp {{ number_format($item['price'] * $item['quantity'], 0, ',', '.') }}
                                     </td>
                                     <td class="px-4 md:px-6 py-3 md:py-4 text-right">
-                                        <button wire:click="removeItem({{ $productId }})"
+                                        <!-- PERBAIKAN: Gunakan '{{ $cartKey }}' dengan tanda kutip -->
+                                        <button wire:click="removeItem('{{ $cartKey }}')"
                                             class="p-1.5 md:p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                                             title="Hapus Item">
                                             <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor"

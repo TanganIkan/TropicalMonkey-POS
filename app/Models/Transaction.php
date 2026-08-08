@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['order_id', 'outlet_id', 'user_id', 'subtotal', 'tax_amount', 'total', 'payment_method'])]
+#[Fillable(['order_id', 'outlet_id', 'user_id', 'subtotal', 'tax_amount', 'total', 'payment_method', 'cash_received', 'change_amount'])]
 class Transaction extends Model
 {
     public function outlet(): BelongsTo

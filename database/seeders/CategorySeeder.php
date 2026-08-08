@@ -13,19 +13,26 @@ class CategorySeeder extends Seeder
      */
     public function run(): void
     {
-        // Daftar kategori sesuai dengan desain Velvet Retail dan tambahan umum
         $categories = [
-            'Apparel',
-            'Footwear',
-            'Accessories',
-            'Lifestyle',
-            'Perawatan & Kecantikan',
-            'Kebutuhan Sehari-hari'
+            'Muscle tee (MT)',
+            'Tshirt (TS)',
+            'Shirt',
+            'Tshirt ladies crop (TL)',
+            'Muscle Ladies (MC)',
+            'Bikini',
+            'Dress',
+            'Long pants',
+            'Short pants (SP)',
+            'Skirt',
+            'Top women',
+            'Bottom women',
+            'Topi',
+            'Stiker',
         ];
 
         foreach ($categories as $categoryName) {
-            Category::create([
-                'name' => $categoryName,
+            Category::firstOrCreate([
+                'name' => $categoryName
             ]);
         }
     }

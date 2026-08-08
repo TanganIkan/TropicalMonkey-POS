@@ -24,16 +24,10 @@ new #[Layout('components.layouts.guest')] class extends Component {
         ]);
 
         if (Auth::attempt(['username' => $this->username, 'password' => $this->password, 'role' => $this->role], $this->remember)) {
-            $user = Auth::user();
-
-            if ($user->role === 'owner') {
-                return redirect()->intended('/dashboard');
-            } else {
-                $this->step = 2;
-                $this->outlets = Outlet::where('is_active', true)->get();
-                if ($this->outlets->count() > 0) {
-                    $this->selected_outlet_id = $this->outlets->first()->id;
-                }
+            $this->step = 2;
+            $this->outlets = Outlet::where('is_active', true)->get();
+            if ($this->outlets->count() > 0) {
+                $this->selected_outlet_id = $this->outlets->first()->id;
             }
         } else {
             $this->addError('username', 'Kredensial tidak valid atau Role salah.');
@@ -48,7 +42,11 @@ new #[Layout('components.layouts.guest')] class extends Component {
 
         session(['current_outlet_id' => $this->selected_outlet_id]);
 
-        return redirect()->intended('/pos');
+        if (Auth::user()->role === 'owner') {
+            return redirect()->intended('/dashboard');
+        } else {
+            return redirect()->intended('/pos');
+        }
     }
 };
 ?>
@@ -64,13 +62,12 @@ new #[Layout('components.layouts.guest')] class extends Component {
 
             @if($step == 1)
                 <form wire:submit="authenticate">
-                    <!-- Pilihan Role (Staff / Owner) -->
                     <div class="mb-6">
                         <label class="block text-xs font-semibold text-gray-500 uppercase mb-3">Login Role</label>
                         <div class="flex space-x-4">
                             <button type="button" wire:click="$set('role', 'staff')"
                                 class="flex-1 py-3 rounded-lg border-2 font-medium flex items-center justify-center gap-2 transition 
-                                                                                        {{ $role === 'staff' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
+                                                                                                    {{ $role === 'staff' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2">
@@ -80,7 +77,7 @@ new #[Layout('components.layouts.guest')] class extends Component {
                             </button>
                             <button type="button" wire:click="$set('role', 'owner')"
                                 class="flex-1 py-3 rounded-lg border-2 font-medium flex items-center justify-center gap-2 transition 
-                                                                                        {{ $role === 'owner' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
+                                                                                                    {{ $role === 'owner' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
@@ -91,7 +88,6 @@ new #[Layout('components.layouts.guest')] class extends Component {
                         </div>
                     </div>
 
-                    <!-- Username -->
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
                         <input type="text" wire:model="username" placeholder="e.g. alex_v"
@@ -99,7 +95,6 @@ new #[Layout('components.layouts.guest')] class extends Component {
                         @error('username') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
-                    <!-- Password -->
                     <div class="mb-6">
                         <div class="flex justify-between mb-1">
                             <label class="block text-sm font-medium text-gray-700">Password</label>
@@ -112,7 +107,7 @@ new #[Layout('components.layouts.guest')] class extends Component {
                     <!-- Submit -->
                     <button type="submit"
                         class="w-full bg-primary text-white font-medium py-3 rounded-lg hover:bg-primary/90 transition flex justify-center items-center gap-2">
-                        Masuk Ke POS
+                        Masuk Ke Akun
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
@@ -121,7 +116,6 @@ new #[Layout('components.layouts.guest')] class extends Component {
                 </form>
 
             @else
-                <!-- STEP 2: Pemilihan Outlet Khusus Kasir -->
                 <form wire:submit="enterPos">
                     <div class="mb-6 text-center">
                         <div
@@ -140,8 +134,7 @@ new #[Layout('components.layouts.guest')] class extends Component {
                             @foreach($outlets as $outlet)
                                 <button type="button" wire:click="$set('selected_outlet_id', {{ $outlet->id }})"
                                     class="flex-1 py-4 px-2 rounded-xl border-2 font-medium flex flex-col items-center justify-center gap-2 transition 
-                                                                                                                                                    {{ $selected_outlet_id == $outlet->id ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
-                                    <!-- Ikon Toko/Storefront -->
+                                                                                                                                                                            {{ $selected_outlet_id == $outlet->id ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M19 21V10l-7-5-7 5v11a2 2 0 002 2h10a2 2 0 002-2zM12 11v4M10 15h4"></path>
@@ -156,7 +149,7 @@ new #[Layout('components.layouts.guest')] class extends Component {
 
                     <button type="submit"
                         class="w-full bg-primary text-white font-medium py-3 rounded-lg hover:bg-primary/90 transition">
-                        Mulai Sesi Kasir
+                        {{ Auth::user()->role === 'owner' ? 'Masuk ke Dashboard' : 'Mulai Sesi Kasir' }}
                     </button>
                 </form>
             @endif

@@ -7,12 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['category_id', 'sku', 'barcode', 'name', 'brand', 'cost_price', 'sell_price', 'has_variants', 'is_active'])]
+#[Fillable(['category_id', 'sku', 'barcode', 'name', 'brand_id', 'image', 'cost_price', 'sell_price', 'has_variants', 'is_active'])]
 class Product extends Model
 {
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
     }
 
     public function stocks(): HasMany
@@ -23,5 +28,9 @@ class Product extends Model
     public function transactionItems(): HasMany
     {
         return $this->hasMany(TransactionItem::class);
+    }
+    public function variants()
+    {
+        return $this->hasMany(ProductVariant::class);
     }
 }

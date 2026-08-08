@@ -20,7 +20,6 @@
     <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
         class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col justify-between flex-shrink-0 transition-transform duration-300 ease-in-out md:static md:translate-x-0">
         <div>
-            <!-- Logo Section -->
             <div class="h-20 flex items-center justify-between px-6 border-b border-transparent">
                 <div>
                     <h1 class="text-xl font-bold text-primary">MutiBrand POS</h1>
@@ -37,16 +36,27 @@
 
             <!-- Navigation -->
             <nav class="mt-6 px-4 space-y-1">
-                <!-- Dashboard (Hanya muncul jika user adalah owner) -->
                 @if(auth()->check() && strtolower(auth()->user()->role ?? '') === 'owner')
-                    <a href="/" wire:navigate
-                        class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('/') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <a href="/dashboard" wire:navigate
+                        class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('dashboard') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
                             </path>
                         </svg>
                         <span class="font-medium">Dashboard</span>
+                    </a>
+                @endif
+
+                @if(auth()->check() && strtolower(auth()->user()->role ?? '') === 'owner')
+                    <a href="/staff" wire:navigate
+                        class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('staff') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                            </path>
+                        </svg>
+                        <span class="font-medium">Karyawan</span>
                     </a>
                 @endif
 
@@ -68,27 +78,26 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                     </svg>
-                    <span class="font-medium">Products</span>
+                    <span class="font-medium">Manajemen Produk</span>
                 </a>
 
-                <!-- Settings -->
-                <a href="/settings" wire:navigate
-                    class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('settings*') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                <!-- Categories & Brands -->
+                <a href="/categories-brands" wire:navigate
+                    class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('categories-brands*') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z">
                         </path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                     </svg>
-                    <span class="font-medium">Settings</span>
+                    <span class="font-medium">Kategori & Brand</span>
                 </a>
             </nav>
         </div>
 
         <!-- User Profile (Bottom) -->
         <div class="p-4 border-t border-gray-100">
-            <div class="flex items-center p-3 bg-blue-50/50 rounded-xl">
+            <a href="/profile" wire:navigate
+                class="flex items-center p-3 bg-blue-50/50 rounded-xl hover:bg-blue-100/60 transition cursor-pointer">
                 <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name ?? 'User') }}&background=bfdbfe&color=1e3a8a"
                     alt="User Avatar" class="w-10 h-10 rounded-full border border-white shadow-sm">
                 <div class="ml-3">
@@ -96,7 +105,7 @@
                     </p>
                     <p class="text-xs text-gray-500 font-medium uppercase">{{ auth()->user()->role ?? 'STAFF' }}</p>
                 </div>
-            </div>
+            </a>
         </div>
     </aside>
 
@@ -144,17 +153,19 @@
                 @endphp
 
                 <div
-                    class="hidden md:flex items-center gap-2 bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-xl mr-2">
-                    <svg class="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor"
+                    class="flex items-center gap-1.5 md:gap-2 bg-primary/5 border border-primary/20 px-2 md:px-3 py-1.5 rounded-xl mr-1 md:mr-2">
+                    <svg class="w-3.5 h-3.5 md:w-4 md:h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4">
                         </path>
                     </svg>
                     <div class="text-left">
-                        <p class="text-[10px] text-primary font-semibold uppercase tracking-wider leading-none">Outlet
-                            Aktif</p>
-                        <p class="text-xs font-bold text-gray-900 mt-0.5">
+                        <p
+                            class="text-[8px] md:text-[10px] text-primary font-semibold uppercase tracking-wider leading-none">
+                            Outlet Aktif</p>
+                        <p
+                            class="text-[10px] md:text-xs font-bold text-gray-900 mt-0.5 truncate max-w-[70px] md:max-w-none">
                             {{ $activeOutlet ? $activeOutlet->name : 'Belum Dipilih' }}
                         </p>
                     </div>
@@ -166,20 +177,6 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                </button>
-                <button class="p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
-                        </path>
-                    </svg>
-                </button>
-                <button class="p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                        </path>
                     </svg>
                 </button>
             </div>

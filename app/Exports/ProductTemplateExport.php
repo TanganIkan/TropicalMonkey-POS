@@ -10,33 +10,51 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize, WithStyles
 {
-    /**
-     * Memberikan baris contoh agar kasir/admin paham cara mengisinya
-     */
     public function array(): array
     {
         return [
             [
-                'Apparel',        // category
-                'Kemeja Flanel',  // name
+                'Footwear',       // category
+                'Sepatu Sneakers',// name
                 'Velvet',         // brand
-                'KMJ-FLN-01',     // sku (Wajib diisi)
+                'SPT-SNK-02',     // sku (Wajib unik)
                 '899123456789',   // barcode
-                '80000',          // cost_price
-                '150000',         // sell_price
+                '150000',         // cost_price
+                '300000',         // sell_price
                 '1',              // is_active (1 = Aktif, 0 = Draf)
-                '24'              // stock (Stok awal untuk outlet ini)
+                '10',             // stock (Stok awal)
+                '',               // variant_size (Kosongkan jika bukan varian)
+                ''                // variant_color (Kosongkan jika bukan varian)
             ],
+
+            // --- CONTOH 2: PRODUK BERVARIAN (Baris 1) ---
             [
-                'Footwear',
-                'Sepatu Sneakers',
+                'Apparel',
+                'Kemeja Flanel',  // name (Sama dengan baris di bawahnya)
                 'Velvet',
-                'SPT-SNK-02',
-                '',               // Barcode boleh kosong
+                'KMJ-FLN-M-HTM',  // sku (Unik per ukuran/warna)
+                '',               // barcode (Boleh kosong)
+                '80000',
                 '150000',
-                '300000',
                 '1',
-                '10'
+                '24',
+                'M',              // variant_size
+                'Hitam'           // variant_color
+            ],
+
+            // --- CONTOH 3: PRODUK BERVARIAN (Baris 2) ---
+            [
+                'Apparel',
+                'Kemeja Flanel',  // name (Harus persis sama agar sistem tahu ini produk yang sama)
+                'Velvet',
+                'KMJ-FLN-L-HTM',  // sku (Unik per ukuran/warna)
+                '',               // barcode 
+                '80000',
+                '150000',
+                '1',
+                '15',             // stock (Bisa berbeda tiap varian)
+                'L',              // variant_size
+                'Hitam'           // variant_color
             ]
         ];
     }
@@ -56,7 +74,9 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize, 
             'cost_price',
             'sell_price',
             'is_active',
-            'stock' // Kolom baru untuk injeksi stok ke cabang
+            'stock',
+            'variant_size',  // Kolom baru untuk Ukuran (S, M, L, dll)
+            'variant_color'  // Kolom baru untuk Warna
         ];
     }
 
