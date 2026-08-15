@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Outlet;
 
 new #[Layout('components.layouts.guest')] class extends Component {
-    public $role = 'staff';
     public $username = '';
     public $password = '';
     public $remember = false;
@@ -23,14 +22,14 @@ new #[Layout('components.layouts.guest')] class extends Component {
             'password' => 'required',
         ]);
 
-        if (Auth::attempt(['username' => $this->username, 'password' => $this->password, 'role' => $this->role], $this->remember)) {
+        if (Auth::attempt(['username' => $this->username, 'password' => $this->password], $this->remember)) {
             $this->step = 2;
             $this->outlets = Outlet::where('is_active', true)->get();
             if ($this->outlets->count() > 0) {
                 $this->selected_outlet_id = $this->outlets->first()->id;
             }
         } else {
-            $this->addError('username', 'Kredensial tidak valid atau Role salah.');
+            $this->addError('username', 'Username atau Password tidak valid.');
         }
     }
 
@@ -43,72 +42,82 @@ new #[Layout('components.layouts.guest')] class extends Component {
         session(['current_outlet_id' => $this->selected_outlet_id]);
 
         if (Auth::user()->role === 'owner') {
-            return redirect()->intended('/dashboard');
+            return redirect('/dashboard');
         } else {
-            return redirect()->intended('/pos');
+            return redirect('/pos');
         }
     }
 };
 ?>
 
 <div>
-    <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div class="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+    <div class="min-h-screen flex items-center justify-centerp-4 relative overflow-hidden">
 
-            <div class="text-center mb-8">
-                <h2 class="text-2xl font-bold text-gray-900">Multibrand POS</h2>
-                <p class="text-sm text-gray-500 mt-2">Efisiensi yang mulus demi keunggulan ritel modern.</p>
-            </div>
+        <div
+            class="absolute top-[-10%] left-[-10%] w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob">
+        </div>
+        <div
+            class="absolute bottom-[-10%] right-[-10%] w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000">
+        </div>
+
+        <div class="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-8 sm:p-10 relative z-10"
+            x-data="{ step: @entangle('step') }">
 
             @if($step == 1)
-                <form wire:submit="authenticate">
-                    <div class="mb-6">
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-3">Login Role</label>
-                        <div class="flex space-x-4">
-                            <button type="button" wire:click="$set('role', 'staff')"
-                                class="flex-1 py-3 rounded-lg border-2 font-medium flex items-center justify-center gap-2 transition 
-                                                                                                    {{ $role === 'staff' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2">
-                                    </path>
-                                </svg>
-                                Staff
-                            </button>
-                            <button type="button" wire:click="$set('role', 'owner')"
-                                class="flex-1 py-3 rounded-lg border-2 font-medium flex items-center justify-center gap-2 transition 
-                                                                                                    {{ $role === 'owner' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
-                                    </path>
-                                </svg>
-                                Owner
-                            </button>
-                        </div>
+                <div class="text-center mb-10">
+                    <div
+                        class="w-16 h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-gray-900/20 transform -rotate-3 hover:rotate-0 transition-transform duration-300">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-2xl font-black text-gray-900 tracking-tight">Multibrand POS</h2>
+                    <p class="text-sm font-medium text-gray-500 mt-2">Masuk ke sistem kasir Anda.</p>
+                </div>
+
+                <form wire:submit="authenticate" x-transition:enter="transition-all ease-out duration-300"
+                    x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
+
+                    <div class="mb-5">
+                        <label class="block text-sm font-bold text-gray-700 mb-1.5">Username</label>
+                        <input type="text" wire:model="username" placeholder="Masukkan username..." autofocus
+                            class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 outline-none font-medium text-gray-900">
+                        @error('username') <span class="text-red-500 text-xs mt-1.5 font-bold block">{{ $message }}</span>
+                        @enderror
                     </div>
 
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                        <input type="text" wire:model="username" placeholder="e.g. alex_v"
-                            class="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition outline-none">
-                        @error('username') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                    </div>
+                    <div class="mb-8">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="block text-sm font-bold text-gray-700">Password</label>
 
-                    <div class="mb-6">
-                        <div class="flex justify-between mb-1">
-                            <label class="block text-sm font-medium text-gray-700">Password</label>
-                            <a href="#" class="text-sm text-primary hover:underline">Lupa Password?</a>
+                            <!-- Tombol Lupa Password menggunakan SweetAlert -->
+                            <button type="button" x-data @click="
+                                                                                                                Swal.fire({
+                                                                                                                    title: 'Lupa Password?',
+                                                                                                                    text: 'Silakan hubungi Owner atau Administrator toko untuk melakukan reset password akun Anda.',
+                                                                                                                    icon: 'info',
+                                                                                                                    confirmButtonColor: '#111827',
+                                                                                                                    confirmButtonText: 'Mengerti',
+                                                                                                                    heightAuto: false,
+                                                                                                                    scrollbarPadding: false
+                                                                                                                })
+                                                                                                            "
+                                class="text-xs font-bold text-gray-500 hover:text-gray-900 hover:underline transition-all">
+                                Lupa Password?
+                            </button>
                         </div>
                         <input type="password" wire:model="password" placeholder="••••••••"
-                            class="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition outline-none">
+                            class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 outline-none font-medium text-gray-900">
                     </div>
 
                     <!-- Submit -->
                     <button type="submit"
-                        class="w-full bg-primary text-white font-medium py-3 rounded-lg hover:bg-primary/90 transition flex justify-center items-center gap-2">
-                        Masuk Ke Akun
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all duration-300 flex justify-center items-center gap-2 shadow-lg shadow-gray-900/30">
+                        <span wire:loading.remove wire:target="authenticate">Masuk Ke Akun</span>
+                        <span wire:loading wire:target="authenticate">Memeriksa...</span>
+                        <svg wire:loading.remove wire:target="authenticate" class="w-5 h-5" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
                         </svg>
@@ -116,26 +125,28 @@ new #[Layout('components.layouts.guest')] class extends Component {
                 </form>
 
             @else
-                <form wire:submit="enterPos">
-                    <div class="mb-6 text-center">
+                <form wire:submit="enterPos" x-transition:enter="transition-all ease-out duration-500"
+                    x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0">
+
+                    <div class="mb-8 text-center">
                         <div
-                            class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-500 mb-4">
+                            class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-900 mb-5 shadow-inner border border-gray-200">
                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900">Kredensial Diterima!</h3>
-                        <p class="text-sm text-gray-500 mt-1">Silakan pilih outlet tempat Anda bertugas hari ini.</p>
+                        <h3 class="text-xl font-black text-gray-900">Pilih Outlet</h3>
+                        <p class="text-sm font-medium text-gray-500 mt-2">Tentukan lokasi tempat Anda bertugas saat ini.</p>
                     </div>
 
-                    <div class="mb-8">
-                        <div class="flex space-x-4">
+                    <div class="mb-10">
+                        <div class="grid grid-cols-2 gap-4">
                             @foreach($outlets as $outlet)
                                 <button type="button" wire:click="$set('selected_outlet_id', {{ $outlet->id }})"
-                                    class="flex-1 py-4 px-2 rounded-xl border-2 font-medium flex flex-col items-center justify-center gap-2 transition 
-                                                                                                                                                                            {{ $selected_outlet_id == $outlet->id ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500 hover:border-gray-300' }}">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    class="py-5 px-3 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-3 transition-all duration-300 ease-in-out shadow-sm
+                                                                                                                                                                                                    {{ $selected_outlet_id == $outlet->id ? 'border-gray-900 text-gray-900 bg-gray-900/5 ring-4 ring-gray-900/10' : 'border-gray-100 text-gray-500 hover:border-gray-300 hover:bg-gray-50' }}">
+                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M19 21V10l-7-5-7 5v11a2 2 0 002 2h10a2 2 0 002-2zM12 11v4M10 15h4"></path>
                                     </svg>
@@ -143,13 +154,22 @@ new #[Layout('components.layouts.guest')] class extends Component {
                                 </button>
                             @endforeach
                         </div>
-                        @error('selected_outlet_id') <span
-                        class="text-red-500 text-xs mt-2 block text-center">{{ $message }}</span> @enderror
+                        @error('selected_outlet_id')
+                            <span class="text-red-500 text-xs mt-3 block text-center font-bold">{{ $message }}</span>
+                        @enderror
                     </div>
 
                     <button type="submit"
-                        class="w-full bg-primary text-white font-medium py-3 rounded-lg hover:bg-primary/90 transition">
-                        {{ Auth::user()->role === 'owner' ? 'Masuk ke Dashboard' : 'Mulai Sesi Kasir' }}
+                        class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all duration-300 shadow-lg shadow-gray-900/30 flex justify-center items-center gap-2">
+                        <span wire:loading.remove wire:target="enterPos">
+                            {{ Auth::user()->role === 'owner' ? 'Masuk ke Dashboard' : 'Mulai Sesi Kasir' }}
+                        </span>
+                        <span wire:loading wire:target="enterPos">Menyiapkan Sistem...</span>
+                        <svg wire:loading.remove wire:target="enterPos" class="w-5 h-5" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
                     </button>
                 </form>
             @endif

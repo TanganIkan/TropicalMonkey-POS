@@ -28,18 +28,32 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         Category::create(['name' => trim($this->categoryName)]);
         $this->reset('categoryName');
-        session()->flash('success', 'Kategori berhasil ditambahkan!');
+
+        $this->dispatch('swal', [
+            'title' => 'Berhasil!',
+            'text' => 'Kategori produk baru berhasil ditambahkan.',
+            'icon' => 'success'
+        ]);
     }
 
     public function deleteCategory($id)
     {
         $category = Category::findOrFail($id);
         if ($category->products()->count() > 0) {
-            session()->flash('error', 'Kategori tidak bisa dihapus karena sedang digunakan oleh produk.');
+            $this->dispatch('swal', [
+                'title' => 'Akses Ditolak!',
+                'text' => 'Kategori ini tidak bisa dihapus karena masih menampung produk.',
+                'icon' => 'error'
+            ]);
             return;
         }
         $category->delete();
-        session()->flash('success', 'Kategori berhasil dihapus!');
+
+        $this->dispatch('swal', [
+            'title' => 'Dihapus!',
+            'text' => 'Kategori berhasil dihapus dari sistem.',
+            'icon' => 'success'
+        ]);
     }
 
     // --- LOGIKA BRAND ---
@@ -62,18 +76,32 @@ new #[Layout('components.layouts.app')] class extends Component {
         ]);
 
         $this->reset(['brandName', 'brandDescription']);
-        session()->flash('success', 'Brand berhasil ditambahkan!');
+
+        $this->dispatch('swal', [
+            'title' => 'Berhasil!',
+            'text' => 'Brand baru berhasil ditambahkan.',
+            'icon' => 'success'
+        ]);
     }
 
     public function deleteBrand($id)
     {
         $brand = Brand::findOrFail($id);
         if ($brand->products()->count() > 0) {
-            session()->flash('error', 'Brand tidak bisa dihapus karena sedang digunakan oleh produk.');
+            $this->dispatch('swal', [
+                'title' => 'Akses Ditolak!',
+                'text' => 'Brand ini tidak bisa dihapus karena masih digunakan oleh produk.',
+                'icon' => 'error'
+            ]);
             return;
         }
         $brand->delete();
-        session()->flash('success', 'Brand berhasil dihapus!');
+
+        $this->dispatch('swal', [
+            'title' => 'Dihapus!',
+            'text' => 'Brand berhasil dihapus dari sistem.',
+            'icon' => 'success'
+        ]);
     }
 
     public function with(): array
@@ -91,104 +119,116 @@ new #[Layout('components.layouts.app')] class extends Component {
 };
 ?>
 
-<div class="p-4 md:p-6 flex flex-col space-y-4 md:space-y-6">
-    <div class="mb-6">
-        <h2 class="text-xl md:text-2xl font-bold text-gray-900">Manajemen Kategori & Brand</h2>
-        <p class="text-gray-500 text-xs md:text-sm mt-1">Kelola daftar kategori dan brand untuk produk Anda.</p>
+<div class="p-4 md:p-6 lg:p-8 flex flex-col space-y-4 md:space-y-6 bg-gray-50/30 min-h-screen">
+
+    <!-- Header -->
+    <div class="mb-2 md:mb-4">
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
+            Manajemen Kategori & Brand
+        </h1>
+        <p class="text-sm text-gray-500 mt-2">Kelola dan atur penamaan kelompok produk Anda.</p>
     </div>
 
-    <!-- Alert Messages -->
-    @if (session()->has('success'))
-        <div class="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm flex items-center">
-            <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            {{ session('success') }}
-        </div>
-    @endif
-    @if (session()->has('error'))
-        <div class="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center">
-            <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
-                </path>
-            </svg>
-            {{ session('error') }}
-        </div>
-    @endif
-
-    <!-- Tabs Navigation (Ditambahkan overflow-x-auto agar bisa di-scroll di HP) -->
+    <!-- Tabs Navigation -->
     <div class="border-b border-gray-200 mb-6 overflow-x-auto">
-        <nav class="-mb-px flex space-x-6 md:space-x-8 min-w-max">
+        <nav class="-mb-px flex space-x-8 min-w-max">
             <button wire:click="$set('activeTab', 'category')"
-                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition {{ $activeTab === 'category' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-                Kategori Produk
+                class="whitespace-nowrap py-4 px-2 border-b-2 font-bold text-sm transition-all duration-300 ease-in-out {{ $activeTab === 'category' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300' }}">
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                        </path>
+                    </svg>
+                    Kategori Produk
+                </span>
             </button>
             <button wire:click="$set('activeTab', 'brand')"
-                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition {{ $activeTab === 'brand' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
-                Brand Produk
+                class="whitespace-nowrap py-4 px-2 border-b-2 font-bold text-sm transition-all duration-300 ease-in-out {{ $activeTab === 'brand' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300' }}">
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9">
+                        </path>
+                    </svg>
+                    Brand / Merek
+                </span>
             </button>
         </nav>
     </div>
 
     <!-- TAB KATEGORI -->
     @if ($activeTab === 'category')
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8" x-data
+            x-transition:enter="transition-all ease-in-out duration-300" x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
+
             <!-- Form Tambah -->
             <div class="lg:col-span-1">
-                <div class="bg-white p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 class="text-sm font-semibold text-gray-800 mb-4">Tambah Kategori Baru</h3>
-                    <form wire:submit="saveCategory" class="space-y-4">
+                <div class="bg-white p-5 md:p-7 rounded-2xl border border-gray-200 shadow-sm sticky top-6">
+                    <h3 class="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Tambah Kategori Baru
+                    </h3>
+                    <form wire:submit="saveCategory" class="space-y-5">
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Nama Kategori</label>
-                            <input type="text" wire:model="categoryName"
-                                placeholder="Contoh: Tshirt ladies crop (TL)"
-                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition">
+                            <label class="block text-sm font-bold text-gray-700 mb-1.5">Nama Kategori</label>
+                            <input type="text" wire:model="categoryName" placeholder="Misal: T-Shirt, Celana..."
+                                class="w-full px-4 py-2.5 border border-gray-200 bg-gray-50 focus:bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 ease-in-out">
                             @error('categoryName')
-                                <span class="text-xs text-red-500 mt-1 block">{{ $message }}</span>
+                                <span class="text-xs text-red-500 mt-1.5 font-medium block">{{ $message }}</span>
                             @enderror
                         </div>
                         <button type="submit"
-                            class="w-full bg-primary hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition shadow-sm">
-                            Simpan Kategori
+                            class="w-full bg-gray-900 hover:bg-black text-white font-bold py-3 px-4 rounded-lg text-sm transition-all duration-300 shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2">
+                            <span wire:loading.remove wire:target="saveCategory">Simpan Kategori</span>
+                            <span wire:loading wire:target="saveCategory">Memproses...</span>
                         </button>
                     </form>
                 </div>
             </div>
-            <!-- Tabel Data (Ditambahkan overflow-x-auto untuk layar HP) -->
+
+            <!-- Tabel Data -->
             <div class="lg:col-span-2">
-                <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
                     <table class="w-full text-left text-sm whitespace-nowrap min-w-[450px]">
                         <thead class="bg-gray-50 border-b border-gray-100">
                             <tr>
-                                <th class="px-4 py-3 font-semibold text-gray-600">Nama Kategori</th>
-                                <th class="px-4 py-3 font-semibold text-gray-600 text-center">Jumlah Produk</th>
-                                <th class="px-4 py-3 font-semibold text-gray-600 text-right">Aksi</th>
+                                <th class="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Nama Kategori
+                                </th>
+                                <th class="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-center">
+                                    Statistik</th>
+                                <th class="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">
+                                    Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             @forelse($categories as $category)
-                                <tr class="hover:bg-gray-50/50 transition">
-                                    <td class="px-4 py-3 text-gray-800 font-medium">{{ $category->name }}</td>
-                                    <td class="px-4 py-3 text-center text-gray-500">
-                                        <div class="flex flex-col items-center justify-center">
+                                <tr class="hover:bg-gray-50/80 transition-all duration-300 ease-in-out">
+                                    <td class="px-6 py-4 text-gray-900 font-bold text-base">
+                                        {{ $category->name }}
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <div class="flex flex-col items-center justify-center gap-1.5">
                                             <span
-                                                class="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold mb-1">
-                                                {{ $category->products_count }} Model (Induk)
+                                                class="bg-gray-100 text-gray-700 border border-gray-200 px-3 py-1 rounded-lg text-xs font-bold shadow-sm">
+                                                {{ $category->products_count }} Produk
                                             </span>
                                             @if ($category->variants_count > 0)
-                                                <span class="text-[11px] text-gray-500 font-medium">
-                                                    Total {{ $category->variants_count }} Varian
+                                                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                                    {{ $category->variants_count }} Varian
                                                 </span>
                                             @endif
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <button wire:click="deleteCategory({{ $category->id }})"
-                                            wire:confirm="Yakin ingin menghapus kategori ini?"
-                                            class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 transition">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                viewBox="0 0 24 24">
+                                    <td class="px-6 py-4 text-right">
+                                        <button type="button" x-data
+                                            @click="confirmDeletion(() => $wire.deleteCategory({{ $category->id }}), 'Kategori {{ $category->name }}')"
+                                            class="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 transition-all duration-300"
+                                            title="Hapus Kategori">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
                                                 </path>
@@ -198,8 +238,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="3" class="px-4 py-8 text-center text-gray-400">Belum ada kategori
-                                        terdaftar.
+                                    <td colspan="3" class="px-6 py-16 text-center">
+                                        <div class="flex flex-col items-center justify-center text-gray-400">
+                                            <div
+                                                class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
+                                                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z">
+                                                    </path>
+                                                </svg>
+                                            </div>
+                                            <p class="font-bold text-gray-500">Belum ada kategori terdaftar.</p>
+                                        </div>
                                     </td>
                                 </tr>
                             @endforelse
@@ -212,65 +263,89 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     <!-- TAB BRAND -->
     @if ($activeTab === 'brand')
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8" x-data
+            x-transition:enter="transition-all ease-in-out duration-300" x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
+
             <!-- Form Tambah -->
             <div class="lg:col-span-1">
-                <div class="bg-white p-4 md:p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 class="text-sm font-semibold text-gray-800 mb-4">Tambah Brand Baru</h3>
-                    <form wire:submit="saveBrand" class="space-y-4">
+                <div class="bg-white p-5 md:p-7 rounded-2xl border border-gray-200 shadow-sm sticky top-6">
+                    <h3 class="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Tambah Brand Baru
+                    </h3>
+                    <form wire:submit="saveBrand" class="space-y-5">
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Nama Brand</label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1.5">Nama Brand</label>
                             <input type="text" wire:model="brandName" placeholder="Contoh: Nike, Adidas..."
-                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition">
+                                class="w-full px-4 py-2.5 border border-gray-200 bg-gray-50 focus:bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 ease-in-out">
                             @error('brandName')
-                                <span class="text-xs text-red-500 mt-1 block">{{ $message }}</span>
+                                <span class="text-xs text-red-500 mt-1.5 font-medium block">{{ $message }}</span>
                             @enderror
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Deskripsi (Opsional)</label>
-                            <textarea wire:model="brandDescription" rows="2" placeholder="Catatan opsional..."
-                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"></textarea>
+                            <label class="block text-sm font-bold text-gray-700 mb-1.5">Deskripsi <span
+                                    class="text-xs font-normal text-gray-400">(Opsional)</span></label>
+                            <textarea wire:model="brandDescription" rows="3" placeholder="Catatan opsional tentang brand..."
+                                class="w-full px-4 py-2.5 border border-gray-200 bg-gray-50 focus:bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 ease-in-out"></textarea>
                         </div>
                         <button type="submit"
-                            class="w-full bg-primary hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition shadow-sm">
-                            Simpan Brand
+                            class="w-full bg-gray-900 hover:bg-black text-white font-bold py-3 px-4 rounded-lg text-sm transition-all duration-300 shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2">
+                            <span wire:loading.remove wire:target="saveBrand">Simpan Brand</span>
+                            <span wire:loading wire:target="saveBrand">Memproses...</span>
                         </button>
                     </form>
                 </div>
             </div>
-            <!-- Tabel Data (Ditambahkan overflow-x-auto untuk layar HP) -->
+
+            <!-- Tabel Data -->
             <div class="lg:col-span-2">
-                <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
                     <table class="w-full text-left text-sm whitespace-nowrap min-w-[450px]">
                         <thead class="bg-gray-50 border-b border-gray-100">
                             <tr>
-                                <th class="px-4 py-3 font-semibold text-gray-600">Info Brand</th>
-                                <th class="px-4 py-3 font-semibold text-gray-600 text-center">Jumlah Produk</th>
-                                <th class="px-4 py-3 font-semibold text-gray-600 text-right">Aksi</th>
+                                <th class="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs">Info Brand
+                                </th>
+                                <th class="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-center">
+                                    Statistik</th>
+                                <th class="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">
+                                    Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             @forelse($brands as $brand)
-                                <tr class="hover:bg-gray-50/50 transition">
-                                    <td class="px-4 py-3 text-gray-800 font-medium">
-                                        {{ $brand->name }}
-                                        @if ($brand->description)
-                                            <p
-                                                class="text-xs text-gray-400 font-normal mt-0.5 truncate max-w-[150px] md:max-w-[200px]">
-                                                {{ $brand->description }}</p>
-                                        @endif
+                                <tr class="hover:bg-gray-50/80 transition-all duration-300 ease-in-out">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-4">
+                                            <div
+                                                class="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center font-bold flex-shrink-0 border border-gray-200">
+                                                {{ strtoupper(substr($brand->name, 0, 1)) }}
+                                            </div>
+                                            <div>
+                                                <p class="font-bold text-gray-900 text-base">{{ $brand->name }}</p>
+                                                @if ($brand->description)
+                                                    <p
+                                                        class="text-xs text-gray-400 font-medium mt-0.5 truncate max-w-[200px] md:max-w-[250px]">
+                                                        {{ $brand->description }}
+                                                    </p>
+                                                @endif
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td class="px-4 py-3 text-center text-gray-500">
+                                    <td class="px-6 py-4 text-center">
                                         <span
-                                            class="bg-gray-100 px-2 py-1 rounded-md text-xs font-semibold">{{ $brand->products_count }}
-                                            item</span>
+                                            class="bg-gray-100 text-gray-700 border border-gray-200 px-3 py-1 rounded-lg text-xs font-bold shadow-sm">
+                                            {{ $brand->products_count }} Produk
+                                        </span>
                                     </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <button wire:click="deleteBrand({{ $brand->id }})"
-                                            wire:confirm="Yakin ingin menghapus brand ini?"
-                                            class="text-red-500 hover:text-red-700 p-1.5 rounded-md hover:bg-red-50 transition">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                                                viewBox="0 0 24 24">
+                                    <td class="px-6 py-4 text-right">
+                                        <button type="button" x-data
+                                            @click="confirmDeletion(() => $wire.deleteBrand({{ $brand->id }}), 'Brand {{ $brand->name }}')"
+                                            class="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 transition-all duration-300"
+                                            title="Hapus Brand">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
                                                 </path>
@@ -280,8 +355,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="3" class="px-4 py-8 text-center text-gray-400">Belum ada brand
-                                        terdaftar.</td>
+                                    <td colspan="3" class="px-6 py-16 text-center">
+                                        <div class="flex flex-col items-center justify-center text-gray-400">
+                                            <div
+                                                class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
+                                                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9">
+                                                    </path>
+                                                </svg>
+                                            </div>
+                                            <p class="font-bold text-gray-500">Belum ada brand terdaftar.</p>
+                                        </div>
+                                    </td>
                                 </tr>
                             @endforelse
                         </tbody>

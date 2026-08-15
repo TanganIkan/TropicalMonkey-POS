@@ -67,7 +67,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $failures = $import->failures();
 
-        // 1. Tangkap error validasi bawaan (Kategori tidak ada, Harga bukan angka, dll)
+        // 1. Tangkap error validasi bawaan
         if ($failures->count() > 0) {
             $this->importErrors = $failures->map(function ($failure) {
                 return [
@@ -79,7 +79,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             $this->importErrors = [];
         }
 
-        // 2. Tangkap error pengecekan manual (SKU sudah ada, Kategori beda dengan induk)
+        // 2. Tangkap error pengecekan manual
         $totalFailed = count($import->failedSkus);
 
         if ($totalFailed > 0 || $failures->count() > 0) {
@@ -87,11 +87,24 @@ new #[Layout('components.layouts.app')] class extends Component {
             $this->importMessageType = 'warning';
             $this->importMessage = "Proses Selesai! Sukses: {$import->importedCount} data. Ditolak: {$totalFailed} data.";
             $this->importFailedDetails = $import->failedSkus;
+
+            $this->dispatch('swal', [
+                'title' => 'Import Selesai dengan Catatan',
+                'text' => "Sebagian data gagal diimpor. Silakan cek detailnya di layar.",
+                'icon' => 'warning'
+            ]);
         } else {
             $this->importMessageType = 'success';
             $this->importSuccess = "Sukses! Seluruh {$import->importedCount} data produk berhasil diimpor ke sistem.";
             $this->importMessage = null;
             $this->importFailedDetails = [];
+
+            $this->closeImportModal();
+            $this->dispatch('swal', [
+                'title' => 'Import Berhasil!',
+                'text' => "Seluruh {$import->importedCount} data produk berhasil dimasukkan ke sistem.",
+                'icon' => 'success'
+            ]);
         }
 
         $this->reset('file');
@@ -131,41 +144,63 @@ new #[Layout('components.layouts.app')] class extends Component {
         $product = Product::find($id);
 
         if (!$product) {
-            session()->flash('error', 'Produk tidak ditemukan.');
+            $this->dispatch('swal', [
+                'title' => 'Gagal!',
+                'text' => 'Produk tidak ditemukan di database.',
+                'icon' => 'error'
+            ]);
             return;
         }
 
-        DB::transaction(function () use ($product) {
-            if ($product->image && Storage::disk('public')->exists($product->image)) {
-                Storage::disk('public')->delete($product->image);
+        try {
+            DB::transaction(function () use ($product) {
+                if ($product->image && Storage::disk('public')->exists($product->image)) {
+                    Storage::disk('public')->delete($product->image);
+                }
+
+                Stock::where('product_id', $product->id)->delete();
+                ProductVariant::where('product_id', $product->id)->delete();
+                $product->delete();
+            });
+
+            $this->dispatch('swal', [
+                'title' => 'Dihapus!',
+                'text' => 'Produk beserta seluruh varian dan stoknya berhasil dihapus.',
+                'icon' => 'success'
+            ]);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                $this->dispatch('swal', [
+                    'title' => 'Tidak Bisa Dihapus!',
+                    'text' => 'Produk ini gagal dihapus karena sudah memiliki riwayat penjualan/transaksi. Silakan Edit dan ubah statusnya menjadi "Draf (Disembunyikan)".',
+                    'icon' => 'error'
+                ]);
+            } else {
+                $this->dispatch('swal', [
+                    'title' => 'Terjadi Kesalahan!',
+                    'text' => 'Gagal menghapus produk: ' . $e->getMessage(),
+                    'icon' => 'error'
+                ]);
             }
-
-            Stock::where('product_id', $product->id)->delete();
-            ProductVariant::where('product_id', $product->id)->delete();
-            $product->delete();
-        });
-
-        session()->flash('success', 'Produk beserta varian dan stok berhasil dihapus.');
+        }
     }
 };
 ?>
-<div class="p-4 md:p-6 flex flex-col space-y-4 md:space-y-6">
+
+<div class="p-4 md:p-6 lg:p-8 flex flex-col space-y-4 md:space-y-6 bg-gray-50/30 min-h-screen">
     <!-- Header Section -->
-    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 flex-shrink-0">
+    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 flex-shrink-0 mb-2">
         <div>
-            <h1 class="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                </svg>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3 tracking-tight">
                 Master Data Produk
             </h1>
             <p class="text-sm text-gray-500 mt-1">Kelola semua barang, harga, dan stok di satu tempat.</p>
         </div>
 
-        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <button wire:click="openImportModal" type="button"
-                class="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-300 transition shadow-sm flex items-center justify-center gap-2">
+                class="w-full sm:w-auto bg-white border-2 border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition shadow-sm flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
@@ -173,7 +208,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 Import Excel
             </button>
             <a href="/products/create" wire:navigate
-                class="bg-primary text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-primary/90 transition shadow-lg shadow-primary/30 flex items-center justify-center gap-2">
+                class="w-full sm:w-auto bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary/90 transition shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>
@@ -183,48 +218,48 @@ new #[Layout('components.layouts.app')] class extends Component {
     </div>
 
     <!-- Unified Table Card -->
-    <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
         <!-- Filter & Search Bar -->
-        <div class="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row gap-3">
+        <div class="p-4 lg:p-5 border-b border-gray-100 bg-white flex flex-col sm:flex-row gap-3 md:gap-4">
             <!-- Search Input -->
             <div class="relative w-full sm:flex-1">
-                <div class="absolute inset-y-0 left-0 pl-3 md:pl-4 flex items-center pointer-events-none">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
                 <input type="text" wire:model.live.debounce.300ms="search" placeholder="Cari nama produk atau SKU..."
-                    class="w-full pl-10 md:pl-12 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition text-sm shadow-sm">
+                    class="w-full pl-11 pr-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition text-sm">
             </div>
 
             <!-- Category Filter Dropdown -->
-            <div class="relative w-full sm:w-64 flex-shrink-0">
+            <div class="relative w-full sm:w-56 flex-shrink-0">
                 <select wire:model.live="selectedCategory"
-                    class="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition text-sm shadow-sm appearance-none cursor-pointer">
+                    class="w-full pl-4 pr-10 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition text-sm appearance-none cursor-pointer font-medium text-gray-700">
                     <option value="">Semua Kategori</option>
                     @foreach ($categories as $category)
                         <option value="{{ $category->id }}">{{ $category->name }}</option>
                     @endforeach
                 </select>
-                <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
                 </div>
             </div>
 
             <!-- Brand Filter Dropdown -->
-            <div class="relative w-full sm:w-64 flex-shrink-0">
+            <div class="relative w-full sm:w-56 flex-shrink-0">
                 <select wire:model.live="selectedBrand"
-                    class="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition text-sm shadow-sm appearance-none cursor-pointer">
+                    class="w-full pl-4 pr-10 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition text-sm appearance-none cursor-pointer font-medium text-gray-700">
                     <option value="">Semua Brand</option>
                     @foreach ($brands as $brand)
                         <option value="{{ $brand->id }}">{{ $brand->name }}</option>
                     @endforeach
                 </select>
-                <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
                 </div>
@@ -234,11 +269,10 @@ new #[Layout('components.layouts.app')] class extends Component {
         <!-- Tabel Responsif -->
         <div class="overflow-x-auto flex-1">
             <table class="w-full text-left border-collapse min-w-[1000px]">
-                <thead class="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-200">
-                    <tr class="text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                    <tr class="text-xs uppercase tracking-wider text-gray-500 font-bold">
                         <th class="px-6 py-4">Informasi Produk</th>
                         <th class="px-6 py-4">Brand & Kategori</th>
-                        <!-- Kolom Harga Modal Dihapus Agar Layar Lebih Lega & Rahasia Terjaga -->
                         <th class="px-6 py-4 text-right">Harga Jual</th>
                         <th class="px-6 py-4 text-center">Stok Aktif</th>
                         <th class="px-6 py-4 text-center">Status</th>
@@ -247,17 +281,17 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($products as $product)
-                        <tr class="hover:bg-gray-50/50 transition">
+                        <tr class="hover:bg-gray-50/80 transition">
                             <!-- 1. INFORMASI PRODUK -->
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center gap-4">
                                     @if ($product->image)
                                         <img src="{{ Storage::url($product->image) }}" alt="{{ $product->name }}"
-                                            class="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0">
+                                            class="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0 shadow-sm">
                                     @else
                                         <div
-                                            class="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                                            <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor"
+                                            class="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                                            <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor"
                                                 viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                     d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
@@ -267,15 +301,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     @endif
                                     <div>
                                         <p class="text-sm font-bold text-gray-900">{{ $product->name }}</p>
-                                        <p class="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
-                                            <span>SKU: <span
-                                                    class="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{{ $product->sku ?? 'Ber-varian' }}</span></span>
+                                        <p class="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-1.5">
+                                            <span
+                                                class="font-mono bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded text-gray-600 font-medium">
+                                                SKU: {{ $product->sku ?? 'Ber-varian' }}
+                                            </span>
 
                                             <!-- Menambahkan Info Barcode -->
                                             @if($product->barcode)
-                                                <span class="text-gray-300">|</span>
-                                                <span>BC: <span
-                                                        class="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{{ $product->barcode }}</span></span>
+                                                <span
+                                                    class="font-mono bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded text-gray-600 font-medium">
+                                                    BC: {{ $product->barcode }}
+                                                </span>
                                             @endif
                                         </p>
                                     </div>
@@ -287,19 +324,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 <div class="flex flex-col items-start gap-1.5">
                                     @if($product->brand)
                                         <span
-                                            class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
+                                            class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-900 text-white uppercase tracking-wider shadow-sm">
                                             {{ $product->brand->name }}
                                         </span>
                                     @endif
                                     <span
-                                        class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-50 text-gray-600 border border-gray-200">
+                                        class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-gray-600 border border-gray-200 uppercase tracking-wider">
                                         {{ $product->category->name ?? 'Tanpa Kategori' }}
                                     </span>
                                 </div>
                             </td>
 
                             <!-- 3. HARGA JUAL -->
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold text-right">
+                            <td
+                                class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-black text-right tracking-tight">
                                 Rp {{ number_format($product->sell_price, 0, ',', '.') }}
                             </td>
 
@@ -310,24 +348,36 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 @endphp
                                 @if ($stockQty > 10)
                                     <span
-                                        class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-green-50 text-green-700 border border-green-200">{{ $stockQty }}</span>
+                                        class="inline-flex items-center justify-center min-w-[2.5rem] px-2.5 py-1 rounded-lg text-sm font-bold bg-white border-2 border-gray-900 text-gray-900">
+                                        {{ $stockQty }}
+                                    </span>
                                 @elseif($stockQty > 0)
+                                    <!-- Jika menipis, beri sedikit aksen abu-abu gelap -->
                                     <span
-                                        class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-yellow-50 text-yellow-700 border border-yellow-200">{{ $stockQty }}</span>
+                                        class="inline-flex items-center justify-center min-w-[2.5rem] px-2.5 py-1 rounded-lg text-sm font-bold bg-gray-100 border-2 border-gray-400 text-gray-700">
+                                        {{ $stockQty }}
+                                    </span>
                                 @else
+                                    <!-- Jika habis -->
                                     <span
-                                        class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-red-50 text-red-700 border border-red-200">0</span>
+                                        class="inline-flex items-center justify-center min-w-[2.5rem] px-2.5 py-1 rounded-lg text-sm font-bold bg-gray-50 border-2 border-gray-200 text-gray-400">
+                                        0
+                                    </span>
                                 @endif
                             </td>
 
                             <!-- 5. STATUS -->
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 @if ($product->is_active)
-                                    <span
-                                        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">Aktif</span>
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <div class="w-2 h-2 rounded-full bg-gray-900"></div>
+                                        <span class="text-xs font-bold text-gray-900">Aktif</span>
+                                    </div>
                                 @else
-                                    <span
-                                        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600">Nonaktif</span>
+                                    <div class="flex items-center justify-center gap-1.5 opacity-50">
+                                        <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+                                        <span class="text-xs font-bold text-gray-500">Nonaktif</span>
+                                    </div>
                                 @endif
                             </td>
 
@@ -335,7 +385,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex justify-end gap-2">
                                     <a href="/products/{{ $product->id }}/add-stock" wire:navigate
-                                        class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                        class="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition border border-transparent hover:border-gray-200"
                                         title="Tambah Stok">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -345,7 +395,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         </svg>
                                     </a>
                                     <a href="/products/{{ $product->id }}/edit" wire:navigate
-                                        class="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition"
+                                        class="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition border border-transparent hover:border-gray-200"
                                         title="Edit Produk">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -353,9 +403,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             </path>
                                         </svg>
                                     </a>
-                                    <button type="button" wire:click="deleteProduct({{ $product->id }})"
-                                        wire:confirm="Yakin menghapus '{{ $product->name }}' permanen?"
-                                        class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    <button type="button" x-data
+                                        @click="confirmDeletion(() => $wire.deleteProduct({{ $product->id }}), 'Produk {{ $product->name }}')"
+                                        class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition border border-transparent hover:border-red-100"
                                         title="Hapus Produk">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -368,8 +418,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-16 text-center text-gray-400">
-                                Belum ada data produk.
+                            <td colspan="6" class="px-6 py-20 text-center">
+                                <div class="flex flex-col items-center justify-center text-gray-400">
+                                    <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                        <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-base font-bold text-gray-500">Belum ada data produk</p>
+                                    <p class="text-sm mt-1">Silakan tambah produk baru atau import dari Excel.</p>
+                                </div>
                             </td>
                         </tr>
                     @endforelse
@@ -378,18 +438,25 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
 
         @if ($products->hasPages())
-            <div class="px-4 py-4 border-t border-gray-100 bg-white">{{ $products->links() }}</div>
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50">{{ $products->links() }}</div>
         @endif
     </div>
 
+    <!-- Modal Import Excel (Disesuaikan Gaya Premium) -->
     @if ($showImportModal)
-        <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity"
+        <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity"
             wire:click.self="closeImportModal">
-            <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <h2 class="text-lg font-bold text-gray-900">Import Data Produk</h2>
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80">
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                        Import Data Produk
+                    </h2>
                     <button wire:click="closeImportModal"
-                        class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                        class="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-200 rounded-full transition">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                             </path>
@@ -397,9 +464,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </button>
                 </div>
 
-                <div class="p-5 max-h-[80vh] overflow-y-auto">
+                <div class="p-6 max-h-[80vh] overflow-y-auto">
                     <button type="button" wire:click="downloadTemplate"
-                        class="w-full text-sm font-medium text-primary bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 mb-5 transition flex items-center justify-center gap-2">
+                        class="w-full text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3.5 mb-6 transition flex items-center justify-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
@@ -408,46 +475,62 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </button>
 
                     <form wire:submit="import">
-                        <div class="mb-5">
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Upload File Import (.xlsx,
-                                .csv)</label>
+                        <div class="mb-6">
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Upload File (.xlsx, .csv)</label>
                             <input type="file" wire:model="file" accept=".xlsx,.csv"
-                                class="w-full text-sm border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
-                            @error('file') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                class="w-full text-sm border-2 border-gray-200 border-dashed rounded-xl px-3 py-4 bg-gray-50/50 focus:outline-none focus:border-gray-900 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black cursor-pointer">
+                            @error('file') <span class="text-red-500 text-xs mt-2 block font-medium">{{ $message }}</span>
+                            @enderror
                         </div>
 
-                        <!-- 1. Notifikasi Pesan Sukses Murni (Hijau) -->
+                        <!-- Notifikasi Sistem (Dipertahankan warnanya karena ini instruksi sistem yang penting) -->
                         @if ($importSuccess)
                             <div
-                                class="bg-green-50 border border-green-200 text-green-700 text-sm p-4 rounded-xl mb-4 font-medium">
+                                class="bg-green-50 border border-green-200 text-green-700 text-sm p-4 rounded-xl mb-4 font-bold flex items-start gap-2">
+                                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
                                 {{ $importSuccess }}
                             </div>
                         @endif
 
-                        <!-- 2. Notifikasi Pesan Warning/Peringatan (Kuning) -->
                         @if ($importMessage)
                             <div
-                                class="{{ $importMessageType === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' : 'bg-green-50 border-green-200 text-green-700' }} border text-sm p-4 rounded-xl mb-4">
-                                <p class="font-bold mb-2">{{ $importMessage }}</p>
-
+                                class="{{ $importMessageType === 'warning' ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-green-50 border-green-200 text-green-700' }} border text-sm p-4 rounded-xl mb-4">
+                                <p class="font-bold mb-2 flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                        </path>
+                                    </svg>
+                                    {{ $importMessage }}
+                                </p>
                                 @if(count($importFailedDetails) > 0)
-                                    <ul class="space-y-1 max-h-32 overflow-y-auto">
+                                    <ul class="space-y-1 max-h-32 overflow-y-auto mt-2">
                                         @foreach($importFailedDetails as $failedSku)
-                                            <li class="bg-white/60 p-2 rounded-lg text-xs font-mono">{{ $failedSku }}</li>
+                                            <li class="bg-white p-2 rounded-lg text-xs font-mono border border-orange-100">
+                                                {{ $failedSku }}
+                                            </li>
                                         @endforeach
                                     </ul>
                                 @endif
                             </div>
                         @endif
 
-                        <!-- 3. Notifikasi Error Validasi Format dari Excel (Merah) -->
                         @if (count($importErrors) > 0)
                             <div
                                 class="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl mb-4 max-h-40 overflow-y-auto">
-                                <p class="font-bold mb-2">Peringatan Format Excel:</p>
-                                <ul class="space-y-1">
+                                <p class="font-bold mb-2 flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Peringatan Format Excel:
+                                </p>
+                                <ul class="space-y-1 mt-2">
                                     @foreach ($importErrors as $error)
-                                        <li class="bg-white/60 p-2 rounded-lg text-xs">
+                                        <li class="bg-white p-2 rounded-lg text-xs border border-red-100">
                                             <span class="font-bold">Baris {{ $error['row'] }}:</span>
                                             {{ implode(', ', $error['errors']) }}
                                         </li>
@@ -456,12 +539,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </div>
                         @endif
 
-                        <div class="flex gap-3 justify-end pt-2 border-t border-gray-100 mt-4">
+                        <div class="flex gap-3 justify-end mt-8">
                             <button type="button" wire:click="closeImportModal"
-                                class="px-5 py-2.5 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl text-sm transition">Tutup</button>
+                                class="px-5 py-2.5 text-gray-700 font-bold hover:bg-gray-100 rounded-xl text-sm transition bg-white border border-gray-200 shadow-sm w-full">Batal</button>
                             <button type="submit"
-                                class="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition shadow-lg shadow-primary/30 flex items-center gap-2">
-                                <span wire:loading.remove wire:target="import">Import Sekarang</span>
+                                class="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2 w-full">
+                                <span wire:loading.remove wire:target="import">Import Data</span>
                                 <span wire:loading wire:target="import">Memproses...</span>
                             </button>
                         </div>

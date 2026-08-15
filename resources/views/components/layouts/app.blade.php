@@ -21,12 +21,20 @@
         class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col justify-between flex-shrink-0 transition-transform duration-300 ease-in-out md:static md:translate-x-0">
         <div>
             <div class="h-20 flex items-center justify-between px-6 border-b border-transparent">
-                <div>
-                    <h1 class="text-xl font-bold text-primary">MutiBrand POS</h1>
-                    <p class="text-xs text-gray-500">Flagship Store</p>
+
+                <div class="flex items-center gap-3">
+                    <img src="{{ asset('images/logo1.jpeg') }}" alt="Brand 1"
+                        class="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover bg-white border border-gray-200 shadow-sm flex-shrink-0">
+
+                    <span class="text-gray-300 font-black text-xs uppercase tracking-widest">X</span>
+
+                    <img src="{{ asset('images/logo2.jpeg') }}" alt="Brand 2"
+                        class="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover bg-white border border-gray-200 shadow-sm flex-shrink-0">
                 </div>
+
                 <!-- Tombol Tutup (Khusus Mobile) -->
-                <button @click="sidebarOpen = false" class="md:hidden text-gray-400 hover:text-gray-600">
+                <button @click="sidebarOpen = false"
+                    class="md:hidden text-gray-400 hover:text-gray-900 transition-all duration-300 ease-in-out p-1">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                         </path>
@@ -36,7 +44,7 @@
 
             <!-- Navigation -->
             <nav class="mt-6 px-4 space-y-1">
-                @if(auth()->check() && strtolower(auth()->user()->role ?? '') === 'owner')
+                @if (auth()->check() && strtolower(auth()->user()->role ?? '') === 'owner')
                     <a href="/dashboard" wire:navigate
                         class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('dashboard') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -48,7 +56,7 @@
                     </a>
                 @endif
 
-                @if(auth()->check() && strtolower(auth()->user()->role ?? '') === 'owner')
+                @if (auth()->check() && strtolower(auth()->user()->role ?? '') === 'owner')
                     <a href="/staff" wire:navigate
                         class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('staff') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,14 +105,19 @@
         <!-- User Profile (Bottom) -->
         <div class="p-4 border-t border-gray-100">
             <a href="/profile" wire:navigate
-                class="flex items-center p-3 bg-blue-50/50 rounded-xl hover:bg-blue-100/60 transition cursor-pointer">
-                <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name ?? 'User') }}&background=bfdbfe&color=1e3a8a"
-                    alt="User Avatar" class="w-10 h-10 rounded-full border border-white shadow-sm">
-                <div class="ml-3">
-                    <p class="text-sm font-bold text-gray-900 truncate w-32">{{ auth()->user()->name ?? 'Guest User' }}
+                class="flex items-center p-3 bg-gray-50 rounded-xl hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all duration-300 ease-in-out cursor-pointer group">
+
+                <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name ?? 'User') }}&background=111827&color=ffffff&bold=true"
+                    alt="User Avatar"
+                    class="w-10 h-10 rounded-full border-2 border-white shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform duration-300 ease-in-out">
+
+                <div class="ml-3 flex-1 min-w-0">
+                    <p class="text-sm font-bold text-gray-900 truncate">{{ auth()->user()->name ?? 'Guest User' }}</p>
+                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                        {{ auth()->user()->role ?? 'STAFF' }}
                     </p>
-                    <p class="text-xs text-gray-500 font-medium uppercase">{{ auth()->user()->role ?? 'STAFF' }}</p>
                 </div>
+
             </a>
         </div>
     </aside>
@@ -125,29 +138,24 @@
                     </svg>
                 </button>
 
-                <!-- Search Bar -->
-                <div class="flex-1 max-w-2xl hidden sm:block">
-                    <div class="relative flex items-center">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z">
-                                </path>
-                            </svg>
-                        </div>
-                        <input type="text" placeholder="Scan barcode or type product name..."
-                            class="w-full pl-12 pr-16 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition">
-                        <div class="absolute inset-y-0 right-2 flex items-center">
-                            <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded">ENTER</span>
-                        </div>
-                    </div>
+                <div class="hidden sm:flex flex-col" x-data="{ time: '', greeting: '' }" x-init="const updateClock = () => {
+                    const now = new Date();
+                    time = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                    const hour = now.getHours();
+                    greeting = hour < 11 ? 'Selamat pagi' : (hour < 15 ? 'Selamat siang' : (hour < 18 ? 'Selamat sore' : 'Selamat malam'));
+                };
+                updateClock();
+                setInterval(updateClock, 1000);">
+                    <p class="text-sm font-bold text-gray-800"
+                        x-text="greeting + ', {{ explode(' ', auth()->user()->name ?? 'User')[0] }} 👋'"></p>
+                    <p class="text-xs text-gray-400" x-text="time"></p>
                 </div>
             </div>
 
             <!-- Header Actions -->
             <div class="flex items-center space-x-2 md:space-x-4 ml-4">
 
-                <!-- OUTLET AKTIF INDICATOR -->
                 @php
                     $activeOutlet = \App\Models\Outlet::find(session('current_outlet_id'));
                 @endphp
@@ -170,15 +178,6 @@
                         </p>
                     </div>
                 </div>
-
-                <button
-                    class="sm:hidden p-2 text-gray-400 hover:text-gray-600 transition rounded-full hover:bg-gray-100">
-                    <!-- Icon Search (Mobile Only) -->
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                </button>
             </div>
         </header>
 

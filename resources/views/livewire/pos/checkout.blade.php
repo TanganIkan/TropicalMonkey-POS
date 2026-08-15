@@ -61,13 +61,20 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function processPayment()
     {
-        if (empty($this->cart)) {
+        // 1. CEGAH DOUBLE CHECKOUT (Tombol Back Browser)
+        if (empty(session()->get('pos_active_cart'))) {
+            $this->redirect('/pos', navigate: true);
             return;
         }
 
+        // 2. VALIDASI UANG TUNAI DENGAN SWEETALERT
         if ($this->paymentMethod === 'tunai') {
             if (!$this->cashReceived || $this->cashReceived < $this->total) {
-                $this->addError('cashReceived', 'Nominal yang dibayar kurang dari total belanja.');
+                $this->dispatch('swal', [
+                    'title' => 'Uang Tidak Cukup!',
+                    'text' => 'Nominal uang tunai yang diterima masih kurang dari total belanja.',
+                    'icon' => 'error'
+                ]);
                 return;
             }
         }
@@ -118,8 +125,9 @@ new #[Layout('components.layouts.app')] class extends Component {
             return $transaction;
         });
 
-        // Kosongkan keranjang
+        // 3. BERSIHKAN VARIABEL & SESSION
         session()->forget('pos_active_cart');
+        $this->cart = [];
 
         $this->redirect('/pos/receipt/' . $transaction->id, navigate: true);
     }
@@ -172,7 +180,6 @@ new #[Layout('components.layouts.app')] class extends Component {
     <div class="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm mb-4">
         <h2 class="text-lg font-bold mb-4">Metode Pembayaran</h2>
 
-        <!-- Grid diubah menjadi 2 kolom (atau 4 kolom di layar besar) agar tombolnya rapi -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button type="button" wire:click="selectPayment('tunai')"
                 class="py-3 rounded-lg border-2 font-medium text-sm transition {{ $paymentMethod === 'tunai' ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-500' }}">
@@ -201,20 +208,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <input type="number" wire:model.live="cashReceived" placeholder="0"
                         class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg text-lg font-bold outline-none focus:border-primary">
                 </div>
-                @error('cashReceived') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
 
                 @if($cashReceived && $cashReceived >= $this->total)
-                    <div class="mt-3 flex justify-between items-center bg-green-50 border border-green-200 rounded-lg p-3">
-                        <span class="text-sm font-medium text-green-700">Kembalian</span>
-                        <span class="text-lg font-bold text-green-700">Rp {{ number_format($this->change, 0, ',', '.') }}</span>
+                    <div class="mt-4 flex justify-between items-center bg-gray-900 rounded-lg p-4 shadow-inner">
+                        <span class="text-sm font-bold text-gray-300">Kembalian</span>
+                        <span class="text-xl font-black text-white tracking-tight">Rp
+                            {{ number_format($this->change, 0, ',', '.') }}</span>
                     </div>
                 @endif
             </div>
         @endif
     </div>
 
-    <button wire:click="processPayment" wire:loading.attr="disabled"
-        class="w-full py-4 bg-primary text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/30 hover:bg-primary/90 transition">
+    <button type="button" x-data @click="confirmCheckout(() => $wire.processPayment())"
+        class="w-full py-4 bg-primary text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/30 hover:bg-primary/90 transition relative">
         <span wire:loading.remove wire:target="processPayment">Selesaikan Transaksi</span>
         <span wire:loading wire:target="processPayment">Memproses...</span>
     </button>
