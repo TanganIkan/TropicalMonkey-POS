@@ -11,15 +11,15 @@ class OutletSeeder extends Seeder
     {
         Outlet::create([
             'name' => 'Tropical Monkey',
-            'address' => 'Alamat Tropical Monkey', // sesuaikan
-            'phone' => '081234567890', // sesuaikan
+            'address' => 'Jl. Monkey Forest, Ubud, Kecamatan Ubud, Kabupaten Gianyar, Bali 80571', // sesuaikan
+            'phone' => '082339194644',
             'is_active' => true,
         ]);
 
         Outlet::create([
             'name' => 'Tropisoul',
-            'address' => 'Alamat Tropisoul', // sesuaikan
-            'phone' => '081234567891', // sesuaikan
+            'address' => 'Jl. Arjuna, Ubud, Kecamatan Ubud, Kabupaten Gianyar, Bali 80571', // sesuaikan
+            'phone' => '082145263950',
             'is_active' => true,
         ]);
     }
