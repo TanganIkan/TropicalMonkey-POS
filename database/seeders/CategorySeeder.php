@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\Category;
+use Illuminate\Support\Facades\DB; // <-- Wajib tambahkan ini untuk mematikan relasi sementara
 
 class CategorySeeder extends Seeder
 {
@@ -13,25 +13,48 @@ class CategorySeeder extends Seeder
      */
     public function run(): void
     {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Category::truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
         $categories = [
-            'Muscle tee (MT)',
-            'Tshirt (TS)',
-            'Shirt',
-            'Tshirt ladies crop (TL)',
-            'Muscle Ladies (MC)',
-            'Bikini',
-            'Dress',
-            'Long pants',
-            'Short pants (SP)',
-            'Skirt',
-            'Top women',
-            'Bottom women',
-            'Topi',
-            'Stiker',
+            'BAG',
+            'BIKINI BOTTOM',
+            'BIKINI TOP',
+            'BOARDSHORT',
+            'BRA',
+            'CAP',
+            'CROP',
+            'CROP TEE',
+            'GIRL SHIRT',
+            'GIRL TANKTOP',
+            'LONG PANT',
+            'LONG PANTS',
+            'MUSCLE',
+            'MUSCLE CROP',
+            'MUSCLE TEE',
+            'PANT',
+            'RASH GUARD',
+            'SET',
+            'SET LONG',
+            'SET SHORT',
+            'SHIRT',
+            'SHORT',
+            'SHORT PANT',
+            'SHORTS',
+            'SKIRT',
+            'SNAPBACK',
+            'STICKER',
+            'T-SHIRT',
+            'T-SHIRT GIRL',
+            'T-SHIRT KIDS',
+            'TOTE BAG',
+            'TRUCKER',
+            'WOMEN SHORT',
         ];
 
         foreach ($categories as $categoryName) {
-            Category::firstOrCreate([
+            Category::create([
                 'name' => $categoryName
             ]);
         }

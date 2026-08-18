@@ -20,7 +20,7 @@ class StockSeeder extends Seeder
                     'product_id' => $product->id,
                     'product_variant_id' => null,
                     'outlet_id' => $outlet->id,
-                    'quantity' => 20, // stok default buat testing
+                    'quantity' => 20,
                 ]);
             }
         }
