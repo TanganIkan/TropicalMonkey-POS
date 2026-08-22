@@ -89,6 +89,16 @@
                     <span class="font-medium">Manajemen Produk</span>
                 </a>
 
+                <a href="/stocks/history" wire:navigate
+                    class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('stocks*') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4">
+                        </path>
+                    </svg>
+                    <span class="font-medium">Lacak Stok</span>
+                </a>
+
                 <!-- Categories & Brands -->
                 <a href="/categories-brands" wire:navigate
                     class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('categories-brands*') ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
@@ -127,7 +137,7 @@
 
         <!-- TOP BAR -->
         <header
-            class="h-20 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 md:px-8 z-10">
+            class="h-20 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 md:px-8">
             <div class="flex items-center flex-1">
                 <!-- Hamburger Button (Mobile Only) -->
                 <button @click="sidebarOpen = true"

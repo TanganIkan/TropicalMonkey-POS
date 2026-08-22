@@ -21,6 +21,8 @@ Route::middleware('auth')->group(function () {
     Volt::route('/products/{product}/edit', 'products.edit')->name('products.edit');
     Volt::route('/products/{product}/add-stock', 'products.add-stock')->name('products.add-stock');
 
+    Volt::route('/stocks/history', 'stocks.history')->name('stocks.history');
+
     Volt::route('/categories-brands', 'categories-brands.index')->name('categories-brands.index');
 
     Volt::route('/profile', 'profile.index')->name('profile');

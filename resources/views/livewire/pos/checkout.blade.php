@@ -119,6 +119,16 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 if ($stock) {
                     $stock->decrement('quantity', $item['quantity']);
+
+                    // Mencatat otomatis riwayat barang keluar
+                    \App\Models\StockHistory::create([
+                        'product_id' => $productId,
+                        'product_variant_id' => $variantId,
+                        'outlet_id' => $outletId,
+                        'quantity' => $item['quantity'],
+                        'type' => 'out',
+                        'nota_number' => $transaction->order_id,
+                    ]);
                 }
             }
 

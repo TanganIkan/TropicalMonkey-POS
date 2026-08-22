@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Stock;
+use App\Models\StockHistory;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -28,6 +29,11 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
         $currentOutletId = session('current_outlet_id');
 
         foreach ($rows as $row) {
+            // PENANGKAL 1: Abaikan "Baris Hantu" (Ghost Rows) dari Excel
+            if (empty(trim($row['sku'])) && empty(trim($row['name']))) {
+                continue;
+            }
+
             $sku = trim($row['sku']);
 
             // 1. CEK DUPLIKASI SKU
@@ -59,12 +65,13 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
             $productName = trim($row['name']);
 
             if ($hasVariants) {
-                // LOGIKA: PRODUK BERVARIAN
                 $existingProduct = Product::where('name', $productName)->first();
 
                 if ($existingProduct) {
                     if ($existingProduct->category_id != $category->id) {
-                        $this->failedSkus[] = "{$sku} (Ditolak: '{$productName}' milik kategori '{$existingProduct->category->name}', bukan '" . trim($row['category']) . "')";
+                        $existingCatName = optional($existingProduct->category)->name ?? 'Kategori Dihapus/Tidak Valid';
+
+                        $this->failedSkus[] = "{$sku} (Ditolak: '{$productName}' milik kategori '{$existingCatName}', bukan '" . trim($row['category']) . "')";
                         continue;
                     }
 
@@ -95,6 +102,17 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
                 ]);
 
                 if ($currentOutletId) {
+                    // CATAT KE STOCK HISTORY DULU (Varian)
+                    StockHistory::create([
+                        'product_id' => $product->id,
+                        'product_variant_id' => $variant->id,
+                        'outlet_id' => $currentOutletId,
+                        'quantity' => $row['stock'] ?? 0,
+                        'type' => 'in',
+                        'nota_number' => $row['nota_number'] ?? null,
+                    ]);
+
+                    // BARU UPDATE MASTER STOCK (Varian)
                     Stock::create([
                         'product_id' => $product->id,
                         'outlet_id' => $currentOutletId,
@@ -106,13 +124,9 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
                 $this->importedCount++;
 
             } else {
-                // LOGIKA: PRODUK TUNGGAL
-
-                // CEK: Apakah nama ini sudah pernah dipakai oleh produk lain di database?
                 $existingName = Product::where('name', $productName)->exists();
 
                 if ($existingName) {
-                    // Blokir dan tolak baris ini!
                     $this->failedSkus[] = "{$sku} (Ditolak: Nama '{$productName}' sudah ada di database. Jika ini adalah varian, wajib isi kolom variant_size / variant_color di Excel.)";
                     continue;
                 }
@@ -130,6 +144,17 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
                 ]);
 
                 if ($currentOutletId) {
+                    // CATAT KE STOCK HISTORY DULU (Tunggal)
+                    StockHistory::create([
+                        'product_id' => $product->id,
+                        'product_variant_id' => null,
+                        'outlet_id' => $currentOutletId,
+                        'quantity' => $row['stock'] ?? 0,
+                        'type' => 'in',
+                        'nota_number' => $row['nota_number'] ?? null,
+                    ]);
+
+                    // BARU UPDATE MASTER STOCK (Tunggal)
                     Stock::create([
                         'product_id' => $product->id,
                         'outlet_id' => $currentOutletId,

@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Outlet;
 use App\Models\Stock;
+use App\Models\StockHistory;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
@@ -152,7 +153,6 @@ new #[Layout('components.layouts.app')] class extends Component {
                 return;
             }
 
-            // Validasi Kategori
             if ($existingProduct->category_id != $this->category_id) {
                 $this->dispatch('swal', [
                     'title' => 'Kategori Berbeda!',
@@ -162,7 +162,6 @@ new #[Layout('components.layouts.app')] class extends Component {
                 return;
             }
 
-            // Validasi Brand
             $brandInput = $this->brand_id ?: null;
             if ($existingProduct->brand_id != $brandInput) {
                 $this->dispatch('swal', [
@@ -177,16 +176,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         DB::transaction(function () use ($activeOutletId, $productName, $existingProduct) {
             $imagePath = $this->photo ? $this->photo->store('products', 'public') : null;
 
-            // 3. GUNAKAN PRODUK LAMA ATAU BUAT BARU
             if ($existingProduct) {
                 $product = $existingProduct;
 
-                // Jika produk lama awalnya "Tunggal", sekarang kita update jadi "Bervarian"
                 if ($this->hasVariants && !$product->has_variants) {
                     $product->update(['has_variants' => true]);
                 }
 
-                // Update foto induk jika ada foto baru
                 if ($imagePath) {
                     $product->update(['image' => $imagePath]);
                 }
@@ -207,7 +203,6 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             $outlets = Outlet::where('is_active', true)->get();
 
-            // 4. BUAT VARIAN (Jika ada)
             if ($this->hasVariants) {
                 foreach ($this->variantCombinations as $combo) {
                     $key = $combo['size'] . '|' . $combo['color'];
@@ -225,6 +220,17 @@ new #[Layout('components.layouts.app')] class extends Component {
                         foreach ($outlets as $outlet) {
                             $qty = $outlet->id == $activeOutletId ? $this->variantStocks[$key][$outlet->id] ?? 0 : 0;
 
+                            if ($qty > 0) {
+                                StockHistory::create([
+                                    'product_id' => $product->id,
+                                    'product_variant_id' => $variant->id,
+                                    'outlet_id' => $outlet->id,
+                                    'quantity' => $qty,
+                                    'type' => 'in',
+                                    'nota_number' => null,
+                                ]);
+                            }
+
                             Stock::create([
                                 'product_id' => $product->id,
                                 'product_variant_id' => $variant->id,
@@ -235,10 +241,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                     }
                 }
             } else {
-                // 5. BUAT STOK UNTUK PRODUK TUNGGAL (Hanya jika produknya benar-benar baru)
                 if (!$existingProduct) {
                     foreach ($outlets as $outlet) {
                         $qty = $outlet->id == $activeOutletId ? $this->simpleStocks[$outlet->id] ?? 0 : 0;
+
+                        if ($qty > 0) {
+                            StockHistory::create([
+                                'product_id' => $product->id,
+                                'product_variant_id' => null,
+                                'outlet_id' => $outlet->id,
+                                'quantity' => $qty,
+                                'type' => 'in',
+                                'nota_number' => null,
+                            ]);
+                        }
 
                         Stock::create([
                             'product_id' => $product->id,

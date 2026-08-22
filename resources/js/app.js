@@ -1,4 +1,3 @@
-// import "./bootstrap";
 import Swal from "sweetalert2";
 import Chart from "chart.js/auto";
 
@@ -77,5 +76,18 @@ window.confirmLogout = function (onConfirm) {
         if (result.isConfirmed) {
             onConfirm(); // Menjalankan fungsi logout jika dikonfirmasi
         }
+    });
+};
+
+// Fungsi global untuk info lupa password
+window.showForgotPassword = function () {
+    Swal.fire({
+        title: "Lupa Password?",
+        text: "Silakan hubungi Owner atau Administrator toko untuk melakukan reset password akun Anda.",
+        icon: "info",
+        confirmButtonColor: "#111827", // Sesuai warna primary aplikasi
+        confirmButtonText: "Mengerti",
+        heightAuto: false,
+        scrollbarPadding: false,
     });
 };

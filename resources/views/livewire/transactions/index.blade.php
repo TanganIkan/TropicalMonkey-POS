@@ -58,7 +58,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     <div class="mb-4">
         <a href="/dashboard" wire:navigate
-            class="inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition">
+            class="inline-flex items-center text-sm font-semibold text-gray-600 hover:text-gray-800 transition">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>

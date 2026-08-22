@@ -91,18 +91,7 @@ new #[Layout('components.layouts.guest')] class extends Component {
                         <div class="flex justify-between items-center mb-1.5">
                             <label class="block text-sm font-bold text-gray-700">Password</label>
 
-                            <!-- Tombol Lupa Password menggunakan SweetAlert -->
-                            <button type="button" x-data @click="
-                                                                                                                Swal.fire({
-                                                                                                                    title: 'Lupa Password?',
-                                                                                                                    text: 'Silakan hubungi Owner atau Administrator toko untuk melakukan reset password akun Anda.',
-                                                                                                                    icon: 'info',
-                                                                                                                    confirmButtonColor: '#111827',
-                                                                                                                    confirmButtonText: 'Mengerti',
-                                                                                                                    heightAuto: false,
-                                                                                                                    scrollbarPadding: false
-                                                                                                                })
-                                                                                                            "
+                            <button type="button" x-data @click="showForgotPassword()"
                                 class="text-xs font-bold text-gray-500 hover:text-gray-900 hover:underline transition-all">
                                 Lupa Password?
                             </button>
@@ -111,7 +100,6 @@ new #[Layout('components.layouts.guest')] class extends Component {
                             class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 outline-none font-medium text-gray-900">
                     </div>
 
-                    <!-- Submit -->
                     <button type="submit"
                         class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all duration-300 flex justify-center items-center gap-2 shadow-lg shadow-gray-900/30">
                         <span wire:loading.remove wire:target="authenticate">Masuk Ke Akun</span>
@@ -145,7 +133,7 @@ new #[Layout('components.layouts.guest')] class extends Component {
                             @foreach($outlets as $outlet)
                                 <button type="button" wire:click="$set('selected_outlet_id', {{ $outlet->id }})"
                                     class="py-5 px-3 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-3 transition-all duration-300 ease-in-out shadow-sm
-                                                                                                                                                                                                    {{ $selected_outlet_id == $outlet->id ? 'border-gray-900 text-gray-900 bg-gray-900/5 ring-4 ring-gray-900/10' : 'border-gray-100 text-gray-500 hover:border-gray-300 hover:bg-gray-50' }}">
+                                                                                                                                                                                                                                                    {{ $selected_outlet_id == $outlet->id ? 'border-gray-900 text-gray-900 bg-gray-900/5 ring-4 ring-gray-900/10' : 'border-gray-100 text-gray-500 hover:border-gray-300 hover:bg-gray-50' }}">
                                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M19 21V10l-7-5-7 5v11a2 2 0 002 2h10a2 2 0 002-2zM12 11v4M10 15h4"></path>

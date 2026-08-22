@@ -7,6 +7,7 @@ use App\Models\Stock;
 use App\Models\Outlet;
 use App\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public Product $product;
@@ -19,11 +20,36 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $newColor = '';
     public $newSku = '';
     public $newBarcode = '';
+    public $notaNumber = '';
 
     public function mount(Product $product)
     {
+        $outletId = session('current_outlet_id');
+
+        // LAPISAN 1: Jika belum pilih outlet / sesi hilang, PAKSA LOGOUT
+        if (!$outletId) {
+            Auth::logout();
+            session()->invalidate();
+            session()->regenerateToken();
+
+            session()->flash('error', 'Sesi toko terputus. Silakan login dan pilih outlet kembali.');
+            $this->redirect('/login', navigate: true);
+            return;
+        }
+
         $this->product = $product;
-        $this->outlet = Outlet::find(session('current_outlet_id'));
+        $this->outlet = Outlet::find($outletId);
+
+        // LAPISAN 2: Jika ID outlet ada tapi dihapus dari database, PAKSA LOGOUT
+        if (!$this->outlet) {
+            Auth::logout();
+            session()->invalidate();
+            session()->regenerateToken();
+
+            session()->flash('error', 'Outlet tidak valid. Silakan login kembali.');
+            $this->redirect('/login', navigate: true);
+            return;
+        }
 
         $this->initQuantities();
     }
@@ -113,6 +139,18 @@ new #[Layout('components.layouts.app')] class extends Component {
             if ($this->product->has_variants) {
                 foreach ($this->addQuantities as $variantId => $qtyToAdd) {
                     if ($qtyToAdd > 0) {
+
+                        // 1. CATAT KE RIWAYAT (Stock History)
+                        \App\Models\StockHistory::create([
+                            'product_id' => $this->product->id,
+                            'product_variant_id' => $variantId,
+                            'outlet_id' => $this->outlet->id,
+                            'quantity' => $qtyToAdd,
+                            'type' => 'in',
+                            'nota_number' => trim($this->notaNumber) ?: null, // Simpan nota
+                        ]);
+
+                        // 2. UPDATE MASTER STOK
                         $stock = Stock::firstOrCreate(
                             [
                                 'product_id' => $this->product->id,
@@ -130,6 +168,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                 $qtyToAdd = $this->addQuantities['single'] ?? 0;
 
                 if ($qtyToAdd > 0) {
+
+                    // 1. CATAT KE BUKU RIWAYAT (Stock History)
+                    \App\Models\StockHistory::create([
+                        'product_id' => $this->product->id,
+                        'product_variant_id' => null,
+                        'outlet_id' => $this->outlet->id,
+                        'quantity' => $qtyToAdd,
+                        'type' => 'in',
+                        'nota_number' => trim($this->notaNumber) ?: null, // Simpan nota
+                    ]);
+
+                    // 2. UPDATE MASTER STOK
                     $stock = Stock::firstOrCreate(
                         [
                             'product_id' => $this->product->id,
@@ -146,6 +196,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         });
 
         if ($hasStockAdded) {
+            // Reset form nota setelah sukses
+            $this->reset('notaNumber');
             $this->dispatch('stock-saved');
         } else {
             $this->dispatch('swal', [
@@ -158,19 +210,37 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function deleteVariant($variantId)
     {
-        DB::transaction(function () use ($variantId) {
-            Stock::where('product_variant_id', $variantId)->delete();
-            ProductVariant::where('id', $variantId)->delete();
-        });
+        try {
+            DB::transaction(function () use ($variantId) {
+                \App\Models\Stock::where('product_variant_id', $variantId)->delete();
+                \App\Models\StockHistory::where('product_variant_id', $variantId)->delete();
+                \App\Models\ProductVariant::where('id', $variantId)->delete();
+            });
 
-        $this->product->refresh();
-        unset($this->addQuantities[$variantId]);
+            $this->product->refresh();
+            unset($this->addQuantities[$variantId]);
 
-        $this->dispatch('swal', [
-            'title' => 'Dihapus!',
-            'text' => 'Varian berhasil dihapus permanen.',
-            'icon' => 'success',
-        ]);
+            $this->dispatch('swal', [
+                'title' => 'Dihapus!',
+                'text' => 'Varian berhasil dihapus permanen.',
+                'icon' => 'success',
+            ]);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                $this->dispatch('swal', [
+                    'title' => 'Tidak Bisa Dihapus!',
+                    'text' => 'Varian ini sudah memiliki riwayat transaksi/penjualan. Demi keamanan laporan keuangan, varian ini tidak bisa dihapus.',
+                    'icon' => 'error'
+                ]);
+            } else {
+                $this->dispatch('swal', [
+                    'title' => 'Terjadi Kesalahan!',
+                    'text' => 'Gagal menghapus varian: ' . $e->getMessage(),
+                    'icon' => 'error'
+                ]);
+            }
+        }
     }
 };
 ?>
@@ -235,6 +305,21 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </p>
             </div>
         </div>
+
+        {{-- <div class="mb-6 p-5 bg-blue-50/50 border border-blue-100 rounded-xl">
+            <label class="block text-sm font-bold text-gray-900 mb-1.5 flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                    </path>
+                </svg>
+                Nomor Nota / Surat Jalan (Opsional)
+            </label>
+            <input type="text" wire:model="notaNumber" placeholder="Contoh: INV-2026-001"
+                class="w-full md:w-1/2 text-sm px-4 py-2.5 border border-gray-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm transition-all">
+            <p class="text-xs text-gray-500 mt-2 font-medium">Nomor nota ini akan dilampirkan ke semua varian yang diisi
+                stoknya di bawah.</p>
+        </div> --}}
 
         @if ($product->has_variants)
             <div x-data="{ addingVariant: @entangle('isAddingVariant') }">

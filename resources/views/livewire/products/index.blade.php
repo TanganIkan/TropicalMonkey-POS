@@ -442,115 +442,119 @@ new #[Layout('components.layouts.app')] class extends Component {
         @endif
     </div>
 
-    <!-- Modal Import Excel (Disesuaikan Gaya Premium) -->
     @if ($showImportModal)
-        <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity"
-            wire:click.self="closeImportModal">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80">
-                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                        </svg>
-                        Import Data Produk
-                    </h2>
-                    <button wire:click="closeImportModal"
-                        class="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-200 rounded-full transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
-                            </path>
-                        </svg>
-                    </button>
-                </div>
+        <template x-teleport="body">
+            <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 transition-opacity"
+                wire:click.self="closeImportModal">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" wire:click.stop>
+                    <!-- Tambahan wire:click.stop agar klik di dalam kotak putih tidak menutup modal -->
+                    <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80">
+                        <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                            </svg>
+                            Import Data Produk
+                        </h2>
+                        <button wire:click="closeImportModal"
+                            class="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-200 rounded-full transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
 
-                <div class="p-6 max-h-[80vh] overflow-y-auto">
-                    <button type="button" wire:click="downloadTemplate"
-                        class="w-full text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3.5 mb-6 transition flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                        </svg>
-                        Download Template Excel
-                    </button>
+                    <div class="p-6 max-h-[80vh] overflow-y-auto">
+                        <button type="button" wire:click="downloadTemplate"
+                            class="w-full text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3.5 mb-6 transition flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            Download Template Excel
+                        </button>
 
-                    <form wire:submit="import">
-                        <div class="mb-6">
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Upload File (.xlsx, .csv)</label>
-                            <input type="file" wire:model="file" accept=".xlsx,.csv"
-                                class="w-full text-sm border-2 border-gray-200 border-dashed rounded-xl px-3 py-4 bg-gray-50/50 focus:outline-none focus:border-gray-900 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black cursor-pointer">
-                            @error('file') <span class="text-red-500 text-xs mt-2 block font-medium">{{ $message }}</span>
-                            @enderror
-                        </div>
-
-                        <!-- Notifikasi Sistem (Dipertahankan warnanya karena ini instruksi sistem yang penting) -->
-                        @if ($importSuccess)
-                            <div
-                                class="bg-green-50 border border-green-200 text-green-700 text-sm p-4 rounded-xl mb-4 font-bold flex items-start gap-2">
-                                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                                {{ $importSuccess }}
+                        <form wire:submit="import">
+                            <div class="mb-6">
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Upload File (.xlsx, .csv)</label>
+                                <input type="file" wire:model="file" accept=".xlsx,.csv"
+                                    class="w-full text-sm border-2 border-gray-200 border-dashed rounded-xl px-3 py-4 bg-gray-50/50 focus:outline-none focus:border-gray-900 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black cursor-pointer">
+                                @error('file') <span
+                                    class="text-red-500 text-xs mt-2 block font-medium">{{ $message }}</span>
+                                @enderror
                             </div>
-                        @endif
 
-                        @if ($importMessage)
-                            <div
-                                class="{{ $importMessageType === 'warning' ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-green-50 border-green-200 text-green-700' }} border text-sm p-4 rounded-xl mb-4">
-                                <p class="font-bold mb-2 flex items-center gap-2">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <!-- Notifikasi Sistem -->
+                            @if ($importSuccess)
+                                <div
+                                    class="bg-green-50 border border-green-200 text-green-700 text-sm p-4 rounded-xl mb-4 font-bold flex items-start gap-2">
+                                    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
-                                        </path>
+                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
-                                    {{ $importMessage }}
-                                </p>
-                                @if(count($importFailedDetails) > 0)
-                                    <ul class="space-y-1 max-h-32 overflow-y-auto mt-2">
-                                        @foreach($importFailedDetails as $failedSku)
-                                            <li class="bg-white p-2 rounded-lg text-xs font-mono border border-orange-100">
-                                                {{ $failedSku }}
+                                    {{ $importSuccess }}
+                                </div>
+                            @endif
+
+                            @if ($importMessage)
+                                <div
+                                    class="{{ $importMessageType === 'warning' ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-green-50 border-green-200 text-green-700' }} border text-sm p-4 rounded-xl mb-4">
+                                    <p class="font-bold mb-2 flex items-center gap-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                            </path>
+                                        </svg>
+                                        {{ $importMessage }}
+                                    </p>
+                                    @if(count($importFailedDetails) > 0)
+                                        <ul class="space-y-1 max-h-32 overflow-y-auto mt-2">
+                                            @foreach($importFailedDetails as $failedSku)
+                                                <li class="bg-white p-2 rounded-lg text-xs font-mono border border-orange-100">
+                                                    {{ $failedSku }}
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+                                </div>
+                            @endif
+
+                            @if (count($importErrors) > 0)
+                                <div
+                                    class="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl mb-4 max-h-40 overflow-y-auto">
+                                    <p class="font-bold mb-2 flex items-center gap-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        Peringatan Format Excel:
+                                    </p>
+                                    <ul class="space-y-1 mt-2">
+                                        @foreach ($importErrors as $error)
+                                            <li class="bg-white p-2 rounded-lg text-xs border border-red-100">
+                                                <span class="font-bold">Baris {{ $error['row'] }}:</span>
+                                                {{ implode(', ', $error['errors']) }}
                                             </li>
                                         @endforeach
                                     </ul>
-                                @endif
-                            </div>
-                        @endif
+                                </div>
+                            @endif
 
-                        @if (count($importErrors) > 0)
-                            <div
-                                class="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl mb-4 max-h-40 overflow-y-auto">
-                                <p class="font-bold mb-2 flex items-center gap-2">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    Peringatan Format Excel:
-                                </p>
-                                <ul class="space-y-1 mt-2">
-                                    @foreach ($importErrors as $error)
-                                        <li class="bg-white p-2 rounded-lg text-xs border border-red-100">
-                                            <span class="font-bold">Baris {{ $error['row'] }}:</span>
-                                            {{ implode(', ', $error['errors']) }}
-                                        </li>
-                                    @endforeach
-                                </ul>
+                            <div class="flex gap-3 justify-end mt-8">
+                                <button type="button" wire:click="closeImportModal"
+                                    class="px-5 py-2.5 text-gray-700 font-bold hover:bg-gray-100 rounded-xl text-sm transition bg-white border border-gray-200 shadow-sm w-full">Batal</button>
+                                <button type="submit"
+                                    class="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2 w-full">
+                                    <span wire:loading.remove wire:target="import">Import Data</span>
+                                    <span wire:loading wire:target="import">Memproses...</span>
+                                </button>
                             </div>
-                        @endif
-
-                        <div class="flex gap-3 justify-end mt-8">
-                            <button type="button" wire:click="closeImportModal"
-                                class="px-5 py-2.5 text-gray-700 font-bold hover:bg-gray-100 rounded-xl text-sm transition bg-white border border-gray-200 shadow-sm w-full">Batal</button>
-                            <button type="submit"
-                                class="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition shadow-lg shadow-gray-900/20 flex items-center justify-center gap-2 w-full">
-                                <span wire:loading.remove wire:target="import">Import Data</span>
-                                <span wire:loading wire:target="import">Memproses...</span>
-                            </button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
+        </template>
     @endif
 </div>
