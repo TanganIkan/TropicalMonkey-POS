@@ -7,8 +7,9 @@ use App\Models\TransactionItem;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-new #[Layout('components.layouts.app')] class extends Component {
-    public $salesFilter = 'daily'; // daily | monthly | yearly
+new #[Layout('components.layouts.app')]
+    class extends Component {
+    public $salesFilter = 'daily';
     public $selectedOutlet = '';
     public $customStart = null;
     public $customEnd = null;
@@ -97,7 +98,14 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function getPaymentSlicesProperty()
     {
-        $payments = $this->outletFilter(Transaction::query())->select('payment_method', DB::raw('SUM(total) as total_amount'))->groupBy('payment_method')->get()->keyBy('payment_method');
+        [$start, $end] = $this->getTrendRange();
+
+        $payments = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->select('payment_method', DB::raw('SUM(total) as total_amount'))
+            ->groupBy('payment_method')
+            ->get()
+            ->keyBy('payment_method');
 
         $total = $payments->sum('total_amount');
 
@@ -140,24 +148,44 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function with(): array
     {
-        $today = Carbon::today();
+        // Semua data kini ditarik HANYA berdasarkan rentang filter
+        [$start, $end] = $this->getTrendRange();
 
-        $totalSalesToday = $this->outletFilter(Transaction::query())->whereDate('created_at', $today)->sum('total');
-        $totalTxToday = $this->outletFilter(Transaction::query())->whereDate('created_at', $today)->count();
+        $trxIds = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->pluck('id');
 
-        $trxIds = $this->outletFilter(Transaction::query())->pluck('id');
+        $totalTransactions = $trxIds->count();
 
-        $topProduct = TransactionItem::select('product_name', DB::raw('SUM(quantity) as total_sold'))->whereIn('transaction_id', $trxIds)->groupBy('product_name')->orderByDesc('total_sold')->first();
+        $totalRevenue = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->sum('total');
 
-        $totalRevenue = $this->outletFilter(Transaction::query())->sum('total');
+        $totalItemsSold = TransactionItem::whereIn('transaction_id', $trxIds)->sum('quantity');
 
-        $topSelling = TransactionItem::select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))->whereIn('transaction_id', $trxIds)->groupBy('product_name', 'product_id')->orderByDesc('total_sold')->limit(4)->get();
+        $topProduct = TransactionItem::select('product_name', DB::raw('SUM(quantity) as total_sold'))
+            ->whereIn('transaction_id', $trxIds)
+            ->groupBy('product_name')
+            ->orderByDesc('total_sold')
+            ->first();
 
-        $recentTransactions = $this->outletFilter(Transaction::query())->with('items')->latest()->limit(4)->get();
+        $topSelling = TransactionItem::select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))
+            ->whereIn('transaction_id', $trxIds)
+            ->groupBy('product_name', 'product_id')
+            ->orderByDesc('total_sold')
+            ->limit(4)
+            ->get();
 
-        $taxNonLokal = $this->outletFilter(Transaction::query())->where('payment_method', 'kartu_non_lokal')->sum('tax_amount');
+        $recentTransactions = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->with('items')->latest()->limit(4)->get();
 
-        return compact('totalSalesToday', 'totalTxToday', 'topProduct', 'totalRevenue', 'topSelling', 'recentTransactions', 'taxNonLokal');
+        $taxNonLokal = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->where('payment_method', 'kartu_non_lokal')
+            ->sum('tax_amount');
+
+        return compact('totalRevenue', 'totalTransactions', 'totalItemsSold', 'topProduct', 'topSelling', 'recentTransactions', 'taxNonLokal');
     }
 
     public function setFilter($filter)
@@ -179,23 +207,43 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function exportPdf()
     {
         [$start, $end] = $this->getTrendRange();
-        $today = Carbon::today();
-
         $outletName = $this->selectedOutlet ? \App\Models\Outlet::find($this->selectedOutlet)->name : 'Semua Outlet';
 
-        $totalSalesToday = $this->outletFilter(Transaction::query())->whereDate('created_at', $today)->sum('total');
-        $totalTxToday = $this->outletFilter(Transaction::query())->whereDate('created_at', $today)->count();
-        $totalRevenue = $this->outletFilter(Transaction::query())->sum('total');
+        $trxIds = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->pluck('id');
 
-        $taxNonLokal = $this->outletFilter(Transaction::query())->where('payment_method', 'kartu_non_lokal')->sum('tax_amount');
+        $totalTransactions = $trxIds->count();
 
-        $trxIds = $this->outletFilter(Transaction::query())->pluck('id');
+        $totalRevenue = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->sum('total');
 
-        $topProduct = TransactionItem::select('product_name', DB::raw('SUM(quantity) as total_sold'))->whereIn('transaction_id', $trxIds)->groupBy('product_name')->orderByDesc('total_sold')->first();
+        $totalItemsSold = TransactionItem::whereIn('transaction_id', $trxIds)->sum('quantity');
 
-        $topSelling = TransactionItem::select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))->whereIn('transaction_id', $trxIds)->groupBy('product_name', 'product_id')->orderByDesc('total_sold')->limit(4)->get();
+        $taxNonLokal = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->where('payment_method', 'kartu_non_lokal')
+            ->sum('tax_amount');
 
-        $recentTransactions = $this->outletFilter(Transaction::query())->with('items')->latest()->limit(5)->get();
+        $topProduct = TransactionItem::select('product_name', DB::raw('SUM(quantity) as total_sold'))
+            ->whereIn('transaction_id', $trxIds)
+            ->groupBy('product_name')
+            ->orderByDesc('total_sold')
+            ->first();
+
+        $topSelling = TransactionItem::select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))
+            ->whereIn('transaction_id', $trxIds)
+            ->groupBy('product_name', 'product_id')
+            ->orderByDesc('total_sold')
+            ->limit(4)
+            ->get();
+
+        $allTransactions = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->with(['items.product', 'items.variant'])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         $slices = collect($this->paymentSlices);
         $paymentBreakdown = [
@@ -208,12 +256,12 @@ new #[Layout('components.layouts.app')] class extends Component {
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.dashboard-report', [
             'outletName' => $outletName,
             'totalRevenue' => $totalRevenue,
-            'todaySales' => $totalSalesToday,
-            'todayTransactions' => $totalTxToday,
+            'totalTransactions' => $totalTransactions,
+            'totalItemsSold' => $totalItemsSold,
             'topProduct' => $topProduct,
             'paymentBreakdown' => $paymentBreakdown,
             'topSelling' => $topSelling,
-            'recentTransactions' => $recentTransactions,
+            'allTransactions' => $allTransactions,
             'periodRange' => $start->format('d M Y') . ' - ' . $end->format('d M Y'),
             'taxNonLokal' => $taxNonLokal,
         ]);
@@ -228,9 +276,8 @@ new #[Layout('components.layouts.app')] class extends Component {
     <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-8 gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Dashboard Owner</h1>
-            <p class="text-sm text-gray-500 mt-1">Ringkasan performa toko Anda secara real-time.</p>
+            <p class="text-sm text-gray-500 mt-1">Ringkasan performa toko berdasarkan periode terpilih.</p>
         </div>
-        <!-- Diperbaiki: Ditambahkan flex-wrap dan properti w-full pada sm untuk mencegah tombol terpotong -->
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
             <select wire:model.live="selectedOutlet"
                 class="w-full sm:w-auto px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-primary">
@@ -251,69 +298,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
-    <!-- 4 Top Cards (Metrics) -->
-    <!-- Diperbaiki: Pada tablet (sm & md) menggunakan 2 atau 3 kolom agar layout seimbang -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 mb-6">
-        <!-- Kotak 1: Total Penjualan -->
+    <!-- 5 Top Cards (Metrics Terfilter) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 mb-6">
+
+        <!-- Kotak 1: Total Pendapatan -->
         <div class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm relative overflow-hidden">
             <div class="flex justify-between items-start mb-4">
                 <div class="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                        </path>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Penjualan Hari Ini</p>
-            <h3 class="text-xl md:text-2xl font-bold text-gray-900 mt-1 truncate"
-                title="Rp {{ number_format($totalSalesToday, 0, ',', '.') }}">
-                Rp {{ number_format($totalSalesToday, 0, ',', '.') }}
-            </h3>
-        </div>
-
-        <!-- Kotak 2: Transaksi -->
-        <div class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-            <div class="flex justify-between items-start mb-4">
-                <div class="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-                        </path>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Transaksi</p>
-            <h3 class="text-xl md:text-2xl font-bold text-gray-900 mt-1">
-                {{ number_format($totalTxToday, 0, ',', '.') }}
-            </h3>
-        </div>
-
-        <!-- Kotak 3: Produk Teratas -->
-        <div class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-            <div class="flex justify-between items-start mb-4">
-                <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white flex-shrink-0">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
-                        </path>
-                    </svg>
-                </div>
-                <span
-                    class="inline-flex items-center text-[10px] font-bold text-primary bg-gray-100 border border-gray-200 px-2 py-1 rounded uppercase tracking-wider">
-                    Terlaris
-                </span>
-            </div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Produk Teratas</p>
-            <h3 class="text-lg font-bold text-gray-900 mt-1 truncate" title="{{ $topProduct->product_name ?? 'N/A' }}">
-                {{ $topProduct->product_name ?? 'Belum ada data' }}
-            </h3>
-        </div>
-
-        <!-- Kotak 4: Total Pendapatan -->
-        <div class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
-            <div class="flex justify-between items-start mb-4">
-                <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white flex-shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z">
@@ -328,8 +319,63 @@ new #[Layout('components.layouts.app')] class extends Component {
             </h3>
         </div>
 
-        <!-- Kotak 5: Pajak Kartu Non-Lokal -->
+        <!-- Kotak 2: Total Transaksi -->
+        <div class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm">
+            <div class="flex justify-between items-start mb-4">
+                <div class="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                        </path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Total Transaksi</p>
+            <h3 class="text-xl md:text-2xl font-bold text-gray-900 mt-1">
+                {{ number_format($totalTransactions, 0, ',', '.') }}
+            </h3>
+        </div>
+
+        <!-- Kotak 3: Item Terjual -->
         <div class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start mb-4">
+                <div class="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Item Terjual</p>
+            <h3 class="text-xl md:text-2xl font-bold text-gray-900 mt-1">
+                {{ number_format($totalItemsSold, 0, ',', '.') }} <span
+                    class="text-sm font-medium text-gray-500">unit</span>
+            </h3>
+        </div>
+
+        <!-- Kotak 4: Produk Teratas -->
+        <div
+            class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm sm:col-span-2 md:col-span-1 xl:col-span-1">
+            <div class="flex justify-between items-start mb-4">
+                <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
+                        </path>
+                    </svg>
+                </div>
+                <span
+                    class="inline-flex items-center text-[10px] font-bold text-primary bg-gray-100 border border-gray-200 px-2 py-1 rounded uppercase tracking-wider">Terlaris</span>
+            </div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Produk Teratas</p>
+            <h3 class="text-lg font-bold text-gray-900 mt-1 truncate" title="{{ $topProduct->product_name ?? 'N/A' }}">
+                {{ $topProduct->product_name ?? 'Belum ada data' }}
+            </h3>
+        </div>
+
+        <!-- Kotak 5: Pajak -->
+        <div
+            class="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm relative overflow-hidden sm:col-span-2 md:col-span-2 xl:col-span-1">
             <div class="flex justify-between items-start mb-4">
                 <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white flex-shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,9 +385,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </svg>
                 </div>
                 <span
-                    class="inline-flex items-center text-[10px] font-bold text-primary bg-gray-100 border border-gray-200 px-2 py-1 rounded uppercase tracking-wider">
-                    Tax
-                </span>
+                    class="inline-flex items-center text-[10px] font-bold text-primary bg-gray-100 border border-gray-200 px-2 py-1 rounded uppercase tracking-wider">Tax</span>
             </div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider line-clamp-1">Pajak (Kartu Luar)</p>
             <h3 class="text-xl md:text-2xl font-bold text-gray-900 mt-1 truncate"
@@ -352,78 +396,64 @@ new #[Layout('components.layouts.app')] class extends Component {
     </div>
 
     <!-- Chart & Pembayaran Grid -->
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6 mb-6">
+    <!-- PERBAIKAN: Diubah dari xl:grid-cols-3 menjadi lg:grid-cols-3 agar di tablet landscape langsung bersebelahan -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
+
         <!-- Sales Trend Chart -->
         <div
-            class="bg-white rounded-3xl p-5 md:p-6 border border-gray-100 shadow-sm xl:col-span-2 flex flex-col min-w-0">
-            <!-- Diperbaiki: xl:flex-row agar filter turun ke bawah dengan aman pada layar tablet (md/lg) -->
-            <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+            class="bg-white rounded-3xl p-5 md:p-6 border border-gray-100 shadow-sm lg:col-span-2 flex flex-col min-w-0">
+            <!-- PERBAIKAN: Filter header dibuat flex-wrap agar tidak tabrakan di layar tablet yang nanggung -->
+            <div class="flex flex-col xl:flex-row xl:items-start justify-between mb-6 gap-4">
                 <div>
                     <h2 class="text-lg font-bold text-gray-900">Tren Penjualan</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Performa pendapatan</p>
+                    <p class="text-xs text-gray-500 mt-0.5">Performa pendapatan berdasarkan periode</p>
                 </div>
 
-                <!-- Diperbaiki: Filter dan Date Picker dipisah wrappingnya agar tidak berhimpitan di tablet -->
-                <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full lg:w-auto">
+                <!-- Di sini kuncinya: items-end, justify-end, dan ml-auto -->
+                <div
+                    class="flex flex-col xl:flex-row items-end xl:items-center justify-end gap-3 w-full xl:w-auto ml-auto">
                     <!-- Tab Buttons -->
                     <div
-                        class="flex items-center bg-gray-50 rounded-lg p-1 border border-gray-200 w-full md:w-auto flex-shrink-0">
+                        class="flex items-center bg-gray-50 rounded-lg p-1 border border-gray-200 w-full sm:w-auto flex-shrink-0">
                         <button wire:click="setFilter('daily')"
-                            class="flex-1 md:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-md transition {{ $salesFilter === 'daily' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-900' }}">
-                            Harian
-                        </button>
+                            class="flex-1 sm:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-md transition {{ $salesFilter === 'daily' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-900' }}">7
+                            Hari</button>
                         <button wire:click="setFilter('monthly')"
-                            class="flex-1 md:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-md transition {{ $salesFilter === 'monthly' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-900' }}">
-                            Bulanan
-                        </button>
+                            class="flex-1 sm:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-md transition {{ $salesFilter === 'monthly' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-900' }}">12
+                            Bulan</button>
                         <button wire:click="setFilter('yearly')"
-                            class="flex-1 md:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-md transition {{ $salesFilter === 'yearly' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-900' }}">
-                            Tahunan
-                        </button>
+                            class="flex-1 sm:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-md transition {{ $salesFilter === 'yearly' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-900' }}">5
+                            Tahun</button>
                     </div>
 
                     <!-- Date Picker Custom -->
                     <div
-                        class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-50 rounded-lg p-2 sm:p-1 border border-gray-200 w-full md:w-auto">
+                        class="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border border-gray-200 w-full sm:w-auto">
                         <div
-                            class="flex items-center justify-between flex-1 gap-1 bg-white sm:bg-transparent border sm:border-0 border-gray-200 rounded-md sm:rounded-none p-1.5 sm:p-0">
+                            class="flex items-center justify-between flex-1 gap-1 bg-white sm:bg-transparent border border-gray-200 sm:border-0 rounded-md p-1.5 sm:p-0">
                             <input type="date" wire:model="customStart"
-                                class="w-full text-xs border-0 bg-transparent px-1 outline-none {{ $salesFilter === 'custom' ? 'text-primary font-semibold' : 'text-gray-500' }}">
-
+                                class="w-full sm:w-[110px] text-xs border-0 bg-transparent px-1 outline-none {{ $salesFilter === 'custom' ? 'text-primary font-semibold' : 'text-gray-500' }}">
                             <span class="text-gray-300 text-xs font-bold px-1">-</span>
-
                             <input type="date" wire:model="customEnd"
-                                class="w-full text-xs border-0 bg-transparent px-1 outline-none {{ $salesFilter === 'custom' ? 'text-primary font-semibold' : 'text-gray-500' }}">
+                                class="w-full sm:w-[110px] text-xs border-0 bg-transparent px-1 outline-none {{ $salesFilter === 'custom' ? 'text-primary font-semibold' : 'text-gray-500' }}">
                         </div>
-
                         <button wire:click="applyCustomRange"
-                            class="w-full sm:w-auto px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary/90 transition shadow-sm sm:shadow-none whitespace-nowrap">
-                            Terapkan
-                        </button>
+                            class="px-4 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary/90 transition shadow-sm whitespace-nowrap">Terapkan</button>
                     </div>
                 </div>
             </div>
 
-            @error('customStart')
-                <span class="text-red-500 text-xs block mb-3 -mt-3">{{ $message }}</span>
-            @enderror
-            @error('customEnd')
-                <span class="text-red-500 text-xs block mb-3 -mt-3">{{ $message }}</span>
-            @enderror
+            @error('customStart') <span class="text-red-500 text-xs block mb-3 -mt-3">{{ $message }}</span> @enderror
+            @error('customEnd') <span class="text-red-500 text-xs block mb-3 -mt-3">{{ $message }}</span> @enderror
 
-            <!-- Diperbaiki: Ditambahkan tinggi absolut h-[300px] agar canvas Chart.js tidak collapse di tablet -->
+            <!-- PERBAIKAN: Padding ditambahkan di setting layout Chart JS -->
             <div class="relative w-full h-[250px] md:h-[300px] flex items-end mt-2" wire:ignore x-data="{
                 chart: null,
                 isBuilding: false,
                 buildChart(labels, data) {
                     if (this.isBuilding) return;
                     this.isBuilding = true;
-            
-                    if (this.chart) {
-                        this.chart.destroy();
-                        this.chart = null;
-                    }
-            
+                    if (this.chart) { this.chart.destroy(); this.chart = null; }
                     this.$nextTick(() => {
                         this.chart = new Chart(this.$refs.canvas, {
                             type: 'line',
@@ -432,7 +462,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 datasets: [{
                                     label: 'Pendapatan Penjualan',
                                     data: data,
-                                    borderColor: '#111827', /* Hitam / Primary */
+                                    borderColor: '#111827',
                                     backgroundColor: 'rgba(17, 24, 39, 0.05)',
                                     borderWidth: 3,
                                     tension: 0.4,
@@ -448,6 +478,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 animation: false,
+                                layout: { padding: { left: 15, right: 15, top: 15, bottom: 0 } },
                                 plugins: { legend: { display: false } },
                                 scales: {
                                     x: { grid: { display: false }, border: { display: false } },
@@ -455,13 +486,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 }
                             }
                         });
-            
                         this.isBuilding = false;
                     });
                 },
                 init() {
                     this.buildChart(@js($this->salesTrendData['labels']), @js($this->salesTrendData['data']));
-            
                     Livewire.on('sales-trend-updated', (data) => {
                         this.buildChart(data.chart.labels, data.chart.data);
                     });
@@ -474,7 +503,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         <!-- Payment Methods -->
         <div class="bg-white rounded-3xl p-5 md:p-6 border border-gray-100 shadow-sm flex flex-col">
             <h2 class="text-lg font-bold text-gray-900">Metode Pembayaran</h2>
-            <p class="text-xs text-gray-500 mt-0.5">Rincian per metode pembayaran</p>
+            <p class="text-xs text-gray-500 mt-0.5">Rincian per metode di periode ini</p>
 
             <div class="flex-1 flex flex-col items-center justify-center py-6">
                 @php
@@ -563,7 +592,6 @@ new #[Layout('components.layouts.app')] class extends Component {
                     class="text-sm font-semibold text-primary hover:text-primary/80 transition">Lihat Semua</a>
             </div>
 
-            <!-- Diperbaiki: Wrapper overflow-x-auto agar tabel bisa digeser di layar kecil jika konten panjang -->
             <div class="overflow-x-auto -mx-2 px-2">
                 <table class="w-full text-left text-sm whitespace-nowrap min-w-[400px]">
                     <thead class="text-xs text-gray-500 font-bold uppercase tracking-wider border-b border-gray-100">
@@ -577,12 +605,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <tbody class="divide-y divide-gray-100">
                         @forelse($recentTransactions as $tx)
                             <tr class="hover:bg-gray-50/50 transition">
-                                <td class="py-4 px-2 text-gray-500 truncate max-w-[120px]">
-                                    {{ $tx->order_id }}
-                                </td>
-                                <td class="py-4 px-2 text-gray-500">
-                                    {{ $tx->items->sum('quantity') }} item
-                                </td>
+                                <td class="py-4 px-2 text-gray-500 truncate max-w-[120px]">{{ $tx->order_id }}</td>
+                                <td class="py-4 px-2 text-gray-500">{{ $tx->items->sum('quantity') }} item</td>
                                 <td class="py-4 px-2">
                                     @php
                                         $methodLabel = match ($tx->payment_method) {
@@ -590,23 +614,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             'kartu_lokal', 'kartu_non_lokal' => 'KARTU',
                                             default => 'TUNAI',
                                         };
-                                        $methodClass =
-                                            $methodLabel === 'TUNAI'
-                                            ? 'bg-gray-200 text-gray-800'
-                                            : 'bg-primary text-white';
+                                        $methodClass = $methodLabel === 'TUNAI' ? 'bg-gray-200 text-gray-800' : 'bg-primary text-white';
                                     @endphp
                                     <span
-                                        class="px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-widest {{ $methodClass }}">
-                                        {{ $methodLabel }}
-                                    </span>
+                                        class="px-2.5 py-1 rounded-md text-[10px] font-extrabold tracking-widest {{ $methodClass }}">{{ $methodLabel }}</span>
                                 </td>
-                                <td class="py-4 px-2 text-right font-bold text-gray-900">
-                                    Rp {{ number_format($tx->total, 0, ',', '.') }}
+                                <td class="py-4 px-2 text-right font-bold text-gray-900">Rp
+                                    {{ number_format($tx->total, 0, ',', '.') }}
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="py-6 text-center text-gray-500">Belum ada transaksi.</td>
+                                <td colspan="4" class="py-6 text-center text-gray-500">Belum ada transaksi di periode ini.
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -47,6 +47,7 @@
             padding: 8px 10px;
             border-bottom: 1px solid #e5e7eb;
             text-align: left;
+            vertical-align: top;
         }
 
         .text-right {
@@ -58,7 +59,6 @@
             width: 100%;
         }
 
-        /* Mengubah lebar menjadi 17.5% agar muat 5 kotak tanpa turun baris */
         .summary-box {
             display: inline-block;
             width: 17.5%;
@@ -106,16 +106,16 @@
 
     <div class="summary-container">
         <div class="summary-box">
-            <small>Penjualan (Harian)</small>
-            <strong>Rp {{ number_format($todaySales, 0, ',', '.') }}</strong>
-        </div>
-        <div class="summary-box">
-            <small>Pendapatan (Semua)</small>
+            <small>Total Pendapatan</small>
             <strong>Rp {{ number_format($totalRevenue, 0, ',', '.') }}</strong>
         </div>
         <div class="summary-box">
-            <small>Transaksi (Harian)</small>
-            <strong>{{ number_format($todayTransactions, 0, ',', '.') }}</strong>
+            <small>Total Transaksi</small>
+            <strong>{{ number_format($totalTransactions, 0, ',', '.') }}</strong>
+        </div>
+        <div class="summary-box">
+            <small>Item Terjual</small>
+            <strong>{{ number_format($totalItemsSold, 0, ',', '.') }}</strong>
         </div>
         <div class="summary-box">
             <small>Produk Terbaik</small>
@@ -169,22 +169,36 @@
         @endforelse
     </table>
 
-    <h3>Transaksi Terbaru</h3>
+    <h3>Detail Seluruh Transaksi</h3>
     <table>
         <tr>
+            <th>Waktu</th>
             <th>ID Pesanan</th>
+            <th>Rincian Item (SKU/Barcode)</th>
             <th>Metode</th>
-            <th class="text-right">Total Belanja</th>
+            <th class="text-right">Total</th>
         </tr>
-        @forelse($recentTransactions as $trx)
+        @forelse($allTransactions as $trx)
             <tr>
+                <td>{{ $trx->created_at->format('d/m/Y H:i') }}</td>
                 <td>{{ $trx->order_id }}</td>
-                <td>{{ strtoupper($trx->payment_method) }}</td>
-                <td class="text-right">Rp {{ number_format($trx->total, 0, ',', '.') }}</td>
+                <td>
+                    <ul style="margin: 0; padding-left: 15px;">
+                        @foreach($trx->items as $item)
+                            <li style="margin-bottom: 4px;">
+                                <strong>[{{ $item->variant->barcode ?? $item->product->barcode ?? 'NO-BARCODE' }}]</strong>
+                                {{ $item->product_name }}
+                                ({{ $item->quantity }}x) - Rp {{ number_format($item->subtotal, 0, ',', '.') }}
+                            </li>
+                        @endforeach
+                    </ul>
+                </td>
+                <td>{{ strtoupper(str_replace('_', ' ', $trx->payment_method)) }}</td>
+                <td class="text-right" style="font-weight: bold;">Rp {{ number_format($trx->total, 0, ',', '.') }}</td>
             </tr>
         @empty
             <tr>
-                <td colspan="3" style="text-align: center; color: #6b7280;">Belum ada data transaksi.</td>
+                <td colspan="5" style="text-align: center; color: #6b7280;">Belum ada data transaksi pada periode ini.</td>
             </tr>
         @endforelse
     </table>
