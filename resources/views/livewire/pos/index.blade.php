@@ -6,7 +6,8 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Stock;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')]
+    class extends Component {
     public $search = '';
     public $cart = [];
 
@@ -241,11 +242,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z">
                         </path>
+
                     </svg>
                 </div>
                 <input type="text" wire:model="search" wire:keydown.enter.prevent="scanOrSearch" autofocus
-                    id="scan-input" placeholder="Scan barcode atau ketik SKU..."
-                    class="w-full pl-10 md:pl-14 pr-4 py-2 md:py-3 bg-gray-50/50 border border-gray-200 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:bg-white rounded-lg text-base md:text-lg font-medium outline-none transition placeholder:font-normal">
+                    id="scan-input" placeholder="Scan barcode atau ketik SKU..." autocomplete="off" spellcheck="false"
+                    class="w-full pl-10 md:pl-14 pr-4 py-2 md:py-3 bg-gray-50/50 border border-gray-200 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:bg-white rounded-lg text-base md:text-lg font-medium outline-none transition-none placeholder:font-normal">
             </div>
 
             <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">

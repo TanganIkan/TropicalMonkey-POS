@@ -161,7 +161,7 @@ new #[Layout('components.layouts.app')]
 
     </div>
 
-    <!-- CLEAN CSS PRINT -->
+    <!-- CLEAN CSS PRINT (Dengan Font Diperbesar & Garis Ditebalkan) -->
     <style>
         @media print {
             @page {
@@ -177,6 +177,25 @@ new #[Layout('components.layouts.app')]
             #print-area * {
                 visibility: visible;
                 color: #000 !important;
+                /* --- FONT DIPERBESAR --- */
+                font-size: 16px !important;
+            }
+
+            /* Memperbesar Judul Toko */
+            #print-area h2 {
+                font-size: 24px !important;
+            }
+
+            /* Memaksa elemen teks yang tadinya kecil ikut membesar */
+            #print-area .text-xs,
+            #print-area .text-sm {
+                font-size: 15px !important;
+            }
+
+            /* Memperbesar Total Harga agar lebih menonjol */
+            #print-area .text-xl,
+            #print-area .text-lg {
+                font-size: 20px !important;
             }
 
             #print-area {
@@ -187,17 +206,17 @@ new #[Layout('components.layouts.app')]
                 padding: 4mm;
             }
 
-            /* Untuk garis putus-putus */
+            /* Untuk garis putus-putus (dijadikan 2px agar seimbang dengan teks besar) */
             #print-area .border-dashed {
-                border-bottom: 1px dashed #000 !important;
+                border-bottom: 2px dashed #000 !important;
                 border-top: none !important;
                 border-left: none !important;
                 border-right: none !important;
             }
 
-            /* Untuk garis lurus biasa (header tabel) */
+            /* Untuk garis lurus biasa (header tabel, juga dijadikan 2px) */
             #print-area .border-b:not(.border-dashed) {
-                border-bottom: 1px solid #000 !important;
+                border-bottom: 2px solid #000 !important;
             }
         }
     </style>
