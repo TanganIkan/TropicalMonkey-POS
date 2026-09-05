@@ -10,7 +10,7 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('stocks', function (Blueprint $table) {
+        Schema::table('stocks_histories', function (Blueprint $table) {
             $table->string('nota_number')->nullable()->after('id');
         });
     }
@@ -20,7 +20,7 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::table('stocks', function (Blueprint $table) {
+        Schema::table('stocks_histories', function (Blueprint $table) {
             $table->dropColumn('nota_number');
         });
     }
