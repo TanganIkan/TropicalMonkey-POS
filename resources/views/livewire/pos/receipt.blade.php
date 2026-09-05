@@ -4,7 +4,8 @@ use Livewire\Volt\Component;
 use Livewire\Attributes\Layout;
 use App\Models\Transaction;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')]
+    class extends Component {
     public Transaction $transaction;
 
     public function mount(Transaction $transaction)
@@ -166,7 +167,6 @@ new #[Layout('components.layouts.app')] class extends Component {
             @page {
                 margin: 0;
                 size: 80mm auto;
-                /* Memaksa browser sadar ini kertas 80mm */
             }
 
             body * {
@@ -185,6 +185,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                 top: 0;
                 width: 80mm;
                 padding: 4mm;
+            }
+
+            /* Untuk garis putus-putus */
+            #print-area .border-dashed {
+                border-bottom: 1px dashed #000 !important;
+                border-top: none !important;
+                border-left: none !important;
+                border-right: none !important;
+            }
+
+            /* Untuk garis lurus biasa (header tabel) */
+            #print-area .border-b:not(.border-dashed) {
+                border-bottom: 1px solid #000 !important;
             }
         }
     </style>
