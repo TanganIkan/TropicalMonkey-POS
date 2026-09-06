@@ -169,7 +169,8 @@ new #[Layout('components.layouts.app')]
             ->orderByDesc('total_sold')
             ->first();
 
-        $topSelling = TransactionItem::select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))
+        $topSelling = TransactionItem::with('product.brand')
+            ->select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))
             ->whereIn('transaction_id', $trxIds)
             ->groupBy('product_name', 'product_id')
             ->orderByDesc('total_sold')
@@ -241,7 +242,7 @@ new #[Layout('components.layouts.app')]
 
         $allTransactions = $this->outletFilter(Transaction::query())
             ->whereBetween('created_at', [$start, $end])
-            ->with(['items.product', 'items.variant'])
+            ->with(['items.product.brand', 'items.variant'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -396,7 +397,6 @@ new #[Layout('components.layouts.app')]
     </div>
 
     <!-- Chart & Pembayaran Grid -->
-    <!-- PERBAIKAN: Diubah dari xl:grid-cols-3 menjadi lg:grid-cols-3 agar di tablet landscape langsung bersebelahan -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
 
         <!-- Sales Trend Chart -->

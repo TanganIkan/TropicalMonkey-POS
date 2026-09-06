@@ -88,7 +88,7 @@
             font-size: 14px;
             margin-bottom: 8px;
             color: #374151;
-            border-left: 3px solid #4338ca;
+            border-left: 3px solid #000000;
             padding-left: 8px;
         }
     </style>
@@ -154,12 +154,18 @@
     <h3>4 Produk Terlaris (Berdasarkan Outlet)</h3>
     <table>
         <tr>
-            <th>Nama Produk</th>
+            <th>Nama Produk & Brand</th>
             <th class="text-right">Total Terjual</th>
         </tr>
         @forelse($topSelling as $item)
             <tr>
-                <td>{{ $item->product_name }}</td>
+                <td>
+                    {{ $item->product_name }}
+                    <!-- Menampilkan nama brand jika ada -->
+                    @if($item->product?->brand)
+                        <br><small style="color: #6b7280;">Brand: {{ $item->product->brand->name }}</small>
+                    @endif
+                </td>
                 <td class="text-right">{{ $item->total_sold }} unit</td>
             </tr>
         @empty
@@ -174,7 +180,9 @@
         <tr>
             <th>Waktu</th>
             <th>ID Pesanan</th>
-            <th>Rincian Item (SKU/Barcode)</th>
+            <th>Barcode</th>
+            <th>Rincian Item</th>
+            <th>Brand</th>
             <th>Metode</th>
             <th class="text-right">Total</th>
         </tr>
@@ -182,23 +190,45 @@
             <tr>
                 <td>{{ $trx->created_at->format('d/m/Y H:i') }}</td>
                 <td>{{ $trx->order_id }}</td>
+
+                <td>
+                    <ul style="margin: 0; padding-left: 0; list-style-type: none;">
+                        @foreach($trx->items as $item)
+                            <li style="margin-bottom: 4px; font-weight: bold;">
+                                {{ $item->variant->barcode ?? $item->product->barcode ?? '-' }}
+                            </li>
+                        @endforeach
+                    </ul>
+                </td>
+
                 <td>
                     <ul style="margin: 0; padding-left: 15px;">
                         @foreach($trx->items as $item)
                             <li style="margin-bottom: 4px;">
-                                <strong>[{{ $item->variant->barcode ?? $item->product->barcode ?? 'NO-BARCODE' }}]</strong>
                                 {{ $item->product_name }}
                                 ({{ $item->quantity }}x) - Rp {{ number_format($item->subtotal, 0, ',', '.') }}
                             </li>
                         @endforeach
                     </ul>
                 </td>
+
+                <!-- Isi Kolom rand -->
+                <td>
+                    <ul style="margin: 0; padding-left: 0; list-style-type: none;">
+                        @foreach($trx->items as $item)
+                            <li style="margin-bottom: 4px; color: #4b5563;">
+                                {{ $item->product?->brand?->name ?? '-' }}
+                            </li>
+                        @endforeach
+                    </ul>
+                </td>
+
                 <td>{{ strtoupper(str_replace('_', ' ', $trx->payment_method)) }}</td>
                 <td class="text-right" style="font-weight: bold;">Rp {{ number_format($trx->total, 0, ',', '.') }}</td>
             </tr>
         @empty
             <tr>
-                <td colspan="5" style="text-align: center; color: #6b7280;">Belum ada data transaksi pada periode ini.</td>
+                <td colspan="7" style="text-align: center; color: #6b7280;">Belum ada data transaksi pada periode ini.</td>
             </tr>
         @endforelse
     </table>
