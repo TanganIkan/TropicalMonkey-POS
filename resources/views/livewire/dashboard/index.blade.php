@@ -269,6 +269,82 @@ new #[Layout('components.layouts.app')]
 
         return response()->streamDownload(fn() => print $pdf->output(), 'laporan-penjualan-' . now()->format('Ymd-His') . '.pdf');
     }
+
+    public function exportExcel()
+    {
+        // Kita ambil data persis seperti exportPdf
+        [$start, $end] = $this->getTrendRange();
+        $outletName = $this->selectedOutlet ? \App\Models\Outlet::find($this->selectedOutlet)->name : 'Semua Outlet';
+
+        $trxIds = $this->outletFilter(Transaction::query())->whereBetween('created_at', [$start, $end])->pluck('id');
+        $totalTransactions = $trxIds->count();
+        $totalRevenue = $this->outletFilter(Transaction::query())->whereBetween('created_at', [$start, $end])->sum('total');
+        $totalItemsSold = TransactionItem::whereIn('transaction_id', $trxIds)->sum('quantity');
+        $taxNonLokal = $this->outletFilter(Transaction::query())->whereBetween('created_at', [$start, $end])->where('payment_method', 'kartu_non_lokal')->sum('tax_amount');
+
+        $topProduct = TransactionItem::select('product_name', DB::raw('SUM(quantity) as total_sold'))->whereIn('transaction_id', $trxIds)->groupBy('product_name')->orderByDesc('total_sold')->first();
+        $topSelling = TransactionItem::with('product.brand')->select('product_name', 'product_id', DB::raw('SUM(quantity) as total_sold'))->whereIn('transaction_id', $trxIds)->groupBy('product_name', 'product_id')->orderByDesc('total_sold')->limit(4)->get();
+
+        $allTransactions = $this->outletFilter(Transaction::query())->whereBetween('created_at', [$start, $end])->with(['items.product.brand', 'items.variant'])->orderBy('created_at', 'desc')->get();
+
+        $slices = collect($this->paymentSlices);
+        $paymentBreakdown = [
+            'cash' => $slices->firstWhere('key', 'tunai')['amount'] ?? 0,
+            'kartu_lokal' => $slices->firstWhere('key', 'kartu_lokal')['amount'] ?? 0,
+            'kartu_non_lokal' => $slices->firstWhere('key', 'kartu_non_lokal')['amount'] ?? 0,
+            'qris' => $slices->firstWhere('key', 'qris')['amount'] ?? 0,
+        ];
+
+        $data = compact('outletName', 'totalRevenue', 'totalTransactions', 'totalItemsSold', 'topProduct', 'paymentBreakdown', 'topSelling', 'allTransactions', 'taxNonLokal');
+        $data['periodRange'] = $start->format('d M Y') . ' - ' . $end->format('d M Y');
+
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\DashboardExport($data), 'laporan-penjualan-' . now()->format('Ymd-His') . '.xlsx');
+    }
+
+    public function exportBrandRevenue()
+    {
+        [$start, $end] = $this->getTrendRange();
+
+        $trxIds = $this->outletFilter(Transaction::query())
+            ->whereBetween('created_at', [$start, $end])
+            ->pluck('id');
+
+        // Tarik semua item yang laku beserta data transaksi waktu order-nya
+        $items = TransactionItem::with(['product.brand', 'transaction'])
+            ->whereIn('transaction_id', $trxIds)
+            ->get();
+
+        $brandsData = [];
+
+        foreach ($items as $item) {
+            $brandName = $item->product?->brand?->name ?? 'Tanpa Brand';
+
+            if (!isset($brandsData[$brandName])) {
+                $brandsData[$brandName] = [
+                    'brand_name' => $brandName,
+                    'items' => [],
+                    'total_revenue' => 0,
+                    'total_qty' => 0
+                ];
+            }
+
+            // Masukkan rincian barang terjual ke dalam "kotak" brand miliknya
+            $brandsData[$brandName]['items'][] = $item;
+            $brandsData[$brandName]['total_revenue'] += $item->subtotal;
+            $brandsData[$brandName]['total_qty'] += $item->quantity;
+        }
+
+        $periodRange = $start->format('d M Y') . ' - ' . $end->format('d M Y');
+        $outletName = $this->selectedOutlet ? \App\Models\Outlet::find($this->selectedOutlet)->name : 'Semua Outlet';
+
+        // Lakukan pengurutan nama brand sesuai abjad biar rapi di Excel
+        ksort($brandsData);
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\BrandRevenueExport($brandsData, $periodRange, $outletName),
+            'laporan-pendapatan-brand-' . now()->format('Ymd-His') . '.xlsx'
+        );
+    }
 };
 ?>
 
@@ -281,21 +357,38 @@ new #[Layout('components.layouts.app')]
         </div>
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
             <select wire:model.live="selectedOutlet"
-                class="w-full sm:w-auto px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-primary">
+                class="w-full sm:w-auto px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white shadow-sm outline-none focus:ring-2 focus:ring-gray-900">
                 <option value="">Semua Outlet</option>
                 @foreach (\App\Models\Outlet::where('is_active', true)->get() as $outlet)
                     <option value="{{ $outlet->id }}">{{ $outlet->name }}</option>
                 @endforeach
             </select>
-            <button wire:click="exportPdf" wire:loading.attr="disabled"
-                class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-primary/90 transition">
-                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                </svg>
-                <span wire:loading.remove wire:target="exportPdf">Ekspor Laporan</span>
-                <span wire:loading wire:target="exportPdf">Menyiapkan...</span>
-            </button>
+
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <!-- Tombol PDF -->
+                <button wire:click="exportPdf" wire:loading.attr="disabled"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg shadow-sm transition">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                        </path>
+                    </svg>
+                    <span wire:loading.remove wire:target="exportPdf">PDF</span>
+                    <span wire:loading wire:target="exportPdf">Loading...</span>
+                </button>
+
+                <!-- Tombol Excel -->
+                <button wire:click="exportBrandRevenue" wire:loading.attr="disabled"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg shadow-sm transition">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z">
+                        </path>
+                    </svg>
+                    <span wire:loading.remove wire:target="exportBrandRevenue">Excel</span>
+                    <span wire:loading wire:target="exportBrandRevenue">Loading...</span>
+                </button>
+            </div>
         </div>
     </div>
 
