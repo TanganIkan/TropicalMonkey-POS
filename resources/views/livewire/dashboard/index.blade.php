@@ -495,17 +495,15 @@ new #[Layout('components.layouts.app')]
         <!-- Sales Trend Chart -->
         <div
             class="bg-white rounded-3xl p-5 md:p-6 border border-gray-100 shadow-sm lg:col-span-2 flex flex-col min-w-0">
-            <!-- PERBAIKAN: Filter header dibuat flex-wrap agar tidak tabrakan di layar tablet yang nanggung -->
             <div class="flex flex-col xl:flex-row xl:items-start justify-between mb-6 gap-4">
                 <div>
                     <h2 class="text-lg font-bold text-gray-900">Tren Penjualan</h2>
                     <p class="text-xs text-gray-500 mt-0.5">Performa pendapatan berdasarkan periode</p>
                 </div>
 
-                <!-- Di sini kuncinya: items-end, justify-end, dan ml-auto -->
                 <div
-                    class="flex flex-col xl:flex-row items-end xl:items-center justify-end gap-3 w-full xl:w-auto ml-auto">
-                    <!-- Tab Buttons -->
+                    class="flex flex-col xl:flex-row items-stretch sm:items-end xl:items-center justify-end gap-3 w-full xl:w-auto ml-auto">
+
                     <div
                         class="flex items-center bg-gray-50 rounded-lg p-1 border border-gray-200 w-full sm:w-auto flex-shrink-0">
                         <button wire:click="setFilter('daily')"
@@ -519,9 +517,8 @@ new #[Layout('components.layouts.app')]
                             Tahun</button>
                     </div>
 
-                    <!-- Date Picker Custom -->
                     <div
-                        class="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border border-gray-200 w-full sm:w-auto">
+                        class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-50 rounded-lg p-2 sm:p-1 border border-gray-200 w-full sm:w-auto">
                         <div
                             class="flex items-center justify-between flex-1 gap-1 bg-white sm:bg-transparent border border-gray-200 sm:border-0 rounded-md p-1.5 sm:p-0">
                             <input type="date" wire:model="customStart"
@@ -530,8 +527,9 @@ new #[Layout('components.layouts.app')]
                             <input type="date" wire:model="customEnd"
                                 class="w-full sm:w-[110px] text-xs border-0 bg-transparent px-1 outline-none {{ $salesFilter === 'custom' ? 'text-primary font-semibold' : 'text-gray-500' }}">
                         </div>
+
                         <button wire:click="applyCustomRange"
-                            class="px-4 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary/90 transition shadow-sm whitespace-nowrap">Terapkan</button>
+                            class="w-full sm:w-auto px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary/90 transition shadow-sm whitespace-nowrap">Terapkan</button>
                     </div>
                 </div>
             </div>
@@ -539,7 +537,7 @@ new #[Layout('components.layouts.app')]
             @error('customStart') <span class="text-red-500 text-xs block mb-3 -mt-3">{{ $message }}</span> @enderror
             @error('customEnd') <span class="text-red-500 text-xs block mb-3 -mt-3">{{ $message }}</span> @enderror
 
-            <!-- PERBAIKAN: Padding ditambahkan di setting layout Chart JS -->
+            <!-- Canvas Chart JS -->
             <div class="relative w-full h-[250px] md:h-[300px] flex items-end mt-2" wire:ignore x-data="{
                 chart: null,
                 isBuilding: false,
