@@ -59,10 +59,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize, 
         ];
     }
 
-    /**
-     * Mendefinisikan judul kolom (Header)
-     * Pastikan penamaannya sama persis dengan yang dibaca di ProductsImport
-     */
+
     public function headings(): array
     {
         return [
@@ -75,14 +72,11 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize, 
             'sell_price',
             'is_active',
             'stock',
-            'variant_size',  // Kolom baru untuk Ukuran (S, M, L, dll)
-            'variant_color'  // Kolom baru untuk Warna
+            'variant_size',
+            'variant_color'
         ];
     }
 
-    /**
-     * Memberikan styling dasar pada file Excel
-     */
     public function styles(Worksheet $sheet)
     {
         return [

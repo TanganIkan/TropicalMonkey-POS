@@ -15,7 +15,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')]
+    class extends Component {
     use WithPagination;
     use WithFileUploads;
 
@@ -121,7 +122,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                 $query->where('outlet_id', $currentOutletId);
             },
         ])->where(function ($query) {
-            $query->where('name', 'like', '%' . $this->search . '%')->orWhere('sku', 'like', '%' . $this->search . '%');
+            $query->where('name', 'like', '%' . $this->search . '%')
+                ->orWhere('sku', 'like', '%' . $this->search . '%')
+                ->orWhere('barcode', 'like', '%' . $this->search . '%');
         });
 
         if ($this->selectedCategory !== '') {
