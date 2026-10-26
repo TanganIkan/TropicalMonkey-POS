@@ -121,8 +121,12 @@
             <small>Produk Terbaik</small>
             <strong>{{ $topProduct->product_name ?? 'Belum ada' }}</strong>
         </div>
+        <div class="summary-box">
+            <small>Total Diskon</small>
+            <strong>Rp {{ number_format($totalDiscount, 0, ',', '.') }}</strong>
+        </div>
         <div class="summary-box" style="margin-right: 0;">
-            <small>Pajak Non-Lokal</small>
+            <small>Total Pajak</small>
             <strong>Rp {{ number_format($taxNonLokal, 0, ',', '.') }}</strong>
         </div>
     </div>
@@ -133,22 +137,12 @@
             <th>Metode Pembayaran</th>
             <th class="text-right">Total Nominal</th>
         </tr>
-        <tr>
-            <td>Tunai (Cash)</td>
-            <td class="text-right">Rp {{ number_format($paymentBreakdown['cash'], 0, ',', '.') }}</td>
-        </tr>
-        <tr>
-            <td>Kartu Lokal</td>
-            <td class="text-right">Rp {{ number_format($paymentBreakdown['kartu_lokal'], 0, ',', '.') }}</td>
-        </tr>
-        <tr>
-            <td>Kartu Non-Lokal</td>
-            <td class="text-right">Rp {{ number_format($paymentBreakdown['kartu_non_lokal'], 0, ',', '.') }}</td>
-        </tr>
-        <tr>
-            <td>QRIS</td>
-            <td class="text-right">Rp {{ number_format($paymentBreakdown['qris'], 0, ',', '.') }}</td>
-        </tr>
+        @foreach ($paymentSlices as $slice)
+            <tr>
+                <td>{{ $slice['label'] }}</td>
+                <td class="text-right">Rp {{ number_format($slice['amount'], 0, ',', '.') }}</td>
+            </tr>
+        @endforeach
     </table>
 
     <h3>4 Produk Terlaris (Berdasarkan Outlet)</h3>
@@ -206,7 +200,7 @@
                         @foreach($trx->items as $item)
                             <li style="margin-bottom: 4px;">
                                 {{ $item->product_name }}
-                                ({{ $item->quantity }}x) - Rp {{ number_format($item->subtotal, 0, ',', '.') }}
+                                ({{ $item->quantity }}x) - Rp {{ number_format($item->subtotal, 0, ',', '.') }}{{ $item->discount_amount > 0 ? ' (disc. Rp ' . number_format($item->discount_amount, 0, ',', '.') . ')' : '' }}
                             </li>
                         @endforeach
                     </ul>
@@ -223,7 +217,7 @@
                     </ul>
                 </td>
 
-                <td>{{ strtoupper(str_replace('_', ' ', $trx->payment_method)) }}</td>
+                <td>{{ $trx->payments->map(fn($p) => \App\Models\PaymentMethod::labelFor($p->payment_method))->implode(' + ') }}</td>
                 <td class="text-right" style="font-weight: bold;">Rp {{ number_format($trx->total, 0, ',', '.') }}</td>
             </tr>
         @empty

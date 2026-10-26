@@ -2,8 +2,9 @@
 
 use Livewire\Volt\Component;
 use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use App\Models\Outlet;
+use App\Services\LoginService;
 
 new #[Layout('components.layouts.guest')] class extends Component {
     public $username = '';
@@ -14,154 +15,159 @@ new #[Layout('components.layouts.guest')] class extends Component {
     public $step = 1;
     public $outlets = [];
     public $selected_outlet_id = '';
+    public $pendingRole = '';
 
-    public function authenticate()
+    public function authenticate(LoginService $login)
     {
         $this->validate([
             'username' => 'required',
             'password' => 'required',
         ]);
 
-        if (Auth::attempt(['username' => $this->username, 'password' => $this->password], $this->remember)) {
-            $this->step = 2;
-            $this->outlets = Outlet::where('is_active', true)->get();
-            if ($this->outlets->count() > 0) {
-                $this->selected_outlet_id = $this->outlets->first()->id;
-            }
-        } else {
-            $this->addError('username', 'Username atau Password tidak valid.');
+        $user = $login->verifyCredentials($this->username, $this->password, request()->ip());
+
+        $this->reset('password');
+        $this->pendingRole = $user->role;
+        $this->step = 2;
+        $this->outlets = Outlet::where('is_active', true)->get();
+        if ($this->outlets->count() > 0) {
+            $this->selected_outlet_id = $this->outlets->first()->id;
         }
     }
 
-    public function enterPos()
+    public function enterPos(LoginService $login)
     {
         $this->validate([
-            'selected_outlet_id' => 'required|exists:outlets,id',
+            'selected_outlet_id' => ['required', Rule::exists('outlets', 'id')->where('is_active', true)],
         ]);
 
-        session(['current_outlet_id' => $this->selected_outlet_id]);
-
-        if (Auth::user()->role === 'owner') {
-            return redirect('/dashboard');
-        } else {
-            return redirect('/pos');
+        if (!$login->pendingUser()) {
+            $this->step = 1;
+            $this->addError('username', 'Sesi login sudah kedaluwarsa. Silakan masukkan username dan password lagi.');
+            return;
         }
+
+        $user = $login->complete((int) $this->selected_outlet_id, (bool) $this->remember);
+
+        return redirect($user->role === 'owner' ? '/dashboard' : '/pos');
     }
 };
 ?>
 
-<div>
-    <div class="min-h-screen flex items-center justify-centerp-4 relative overflow-hidden">
+@php
+    $logo1 = \App\Models\Setting::get('logo_primary') ? asset('storage/' . \App\Models\Setting::get('logo_primary')) : asset('images/logo1.jpeg');
+    $logo2 = \App\Models\Setting::get('logo_secondary') ? asset('storage/' . \App\Models\Setting::get('logo_secondary')) : asset('images/logo2.jpeg');
+@endphp
 
-        <div
-            class="absolute top-[-10%] left-[-10%] w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob">
-        </div>
-        <div
-            class="absolute bottom-[-10%] right-[-10%] w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000">
-        </div>
+<div class="min-h-screen p-3 md:p-4 lg:p-6 flex">
+    <div class="bento w-full grid-cols-1 lg:grid-cols-5 lg:grid-rows-[1fr_auto] max-w-6xl mx-auto">
 
-        <div class="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-8 sm:p-10 relative z-10"
-            x-data="{ step: @entangle('step') }">
+        <!-- Tile branding -->
+        <div class="tile-dark relative overflow-hidden lg:col-span-3 lg:row-span-2 flex flex-col justify-between min-h-[12rem] lg:min-h-0 p-6 md:p-10">
+            <div class="absolute -right-24 -top-24 w-72 h-72 rounded-full border border-white/10"></div>
+            <div class="absolute -right-10 -top-10 w-44 h-44 rounded-full border border-white/10"></div>
 
-            @if($step == 1)
-                <div class="text-center mb-10">
-                    <div
-                        class="w-16 h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-gray-900/20 transform -rotate-3 hover:rotate-0 transition-transform duration-300">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                        </svg>
+            <div class="relative flex items-center gap-3">
+                <div class="flex -space-x-2">
+                    <img src="{{ $logo1 }}" alt="Logo 1" class="w-11 h-11 md:w-12 md:h-12 rounded-full object-cover ring-2 ring-ink bg-white">
+                    <img src="{{ $logo2 }}" alt="Logo 2" class="w-11 h-11 md:w-12 md:h-12 rounded-full object-cover ring-2 ring-ink bg-white">
+                </div>
+                <span class="text-sm font-semibold text-white/70">Multibrand POS</span>
+            </div>
+
+            <div class="relative mt-8 lg:mt-0">
+                <h1 class="text-3xl md:text-5xl font-bold tracking-tight leading-[1.1]">Kelola semua<br class="hidden md:block"> brand dalam<br class="hidden md:block"> satu kasir.</h1>
+                <p class="hidden md:block text-white/60 mt-4 max-w-md text-sm">Penjualan, stok, dan laporan setiap outlet — tersinkron dalam satu sistem.</p>
+            </div>
+
+            <div class="relative hidden lg:grid grid-cols-3 gap-3 mt-10">
+                @foreach ([['pos', 'Kasir cepat'], ['clipboard', 'Stok real-time'], ['chart', 'Laporan lengkap']] as [$icon, $label])
+                    <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+                        <x-icon :name="$icon" class="w-5 h-5 text-white/80" />
+                        <p class="text-xs font-medium text-white/70 mt-3">{{ $label }}</p>
                     </div>
-                    <h2 class="text-2xl font-black text-gray-900 tracking-tight">Multibrand POS</h2>
-                    <p class="text-sm font-medium text-gray-500 mt-2">Masuk ke sistem kasir Anda.</p>
+                @endforeach
+            </div>
+        </div>
+
+        <!-- Tile form -->
+        <div class="tile lg:col-span-2 flex flex-col justify-center p-6 md:p-10">
+            @if ($step == 1)
+                <div class="mb-8">
+                    <div class="w-12 h-12 rounded-2xl bg-ink text-white flex items-center justify-center mb-5">
+                        <x-icon name="lock" />
+                    </div>
+                    <h2 class="text-2xl font-bold tracking-tight">Masuk</h2>
+                    <p class="text-sm text-zinc-500 mt-1">Gunakan akun kasir atau owner Anda.</p>
                 </div>
 
-                <form wire:submit="authenticate" x-transition:enter="transition-all ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
+                <form wire:submit="authenticate" class="space-y-4">
+                    @if (session('status'))
+                        <div class="rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-medium px-4 py-3">{{ session('status') }}</div>
+                    @endif
+                    @if (session('error'))
+                        <div class="rounded-2xl bg-red-50 border border-red-100 text-red-700 text-xs font-medium px-4 py-3">{{ session('error') }}</div>
+                    @endif
 
-                    <div class="mb-5">
-                        <label class="block text-sm font-bold text-gray-700 mb-1.5">Username</label>
-                        <input type="text" wire:model="username" placeholder="Masukkan username..." autofocus
-                            class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 outline-none font-medium text-gray-900">
-                        @error('username') <span class="text-red-500 text-xs mt-1.5 font-bold block">{{ $message }}</span>
-                        @enderror
+                    <div>
+                        <label class="label" for="username">Username</label>
+                        <input id="username" type="text" wire:model="username" placeholder="mis. elga" autofocus autocomplete="username" class="input-lg">
+                        @error('username') <span class="field-error">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="mb-8">
-                        <div class="flex justify-between items-center mb-1.5">
-                            <label class="block text-sm font-bold text-gray-700">Password</label>
-
-                            <button type="button" x-data @click="showForgotPassword()"
-                                class="text-xs font-bold text-gray-500 hover:text-gray-900 hover:underline transition-all">
-                                Lupa Password?
+                    <div x-data="{ show: false }">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="label !mb-0" for="password">Password</label>
+                            <button type="button" onclick="showForgotPassword()" class="text-xs font-semibold text-zinc-500 hover:text-zinc-900">Lupa password?</button>
+                        </div>
+                        <div class="relative">
+                            <input id="password" :type="show ? 'text' : 'password'" wire:model="password" placeholder="••••••••" autocomplete="current-password" class="input-lg pr-12">
+                            <button type="button" @click="show = !show" class="absolute right-2 top-1/2 -translate-y-1/2 btn-icon" :aria-label="show ? 'Sembunyikan password' : 'Tampilkan password'">
+                                <x-icon name="eye" class="w-4 h-4" />
                             </button>
                         </div>
-                        <input type="password" wire:model="password" placeholder="••••••••"
-                            class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300 outline-none font-medium text-gray-900">
                     </div>
 
-                    <button type="submit"
-                        class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all duration-300 flex justify-center items-center gap-2 shadow-lg shadow-gray-900/30">
-                        <span wire:loading.remove wire:target="authenticate">Masuk Ke Akun</span>
+                    <button type="submit" class="btn-primary btn-lg w-full mt-2">
+                        <span wire:loading.remove wire:target="authenticate">Lanjutkan</span>
                         <span wire:loading wire:target="authenticate">Memeriksa...</span>
-                        <svg wire:loading.remove wire:target="authenticate" class="w-5 h-5" fill="none"
-                            stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                        </svg>
+                        <x-icon name="arrow-right" class="w-4 h-4" wire:loading.remove wire:target="authenticate" />
                     </button>
                 </form>
-
             @else
-                <form wire:submit="enterPos" x-transition:enter="transition-all ease-out duration-500"
-                    x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0">
-
-                    <div class="mb-8 text-center">
-                        <div
-                            class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-900 mb-5 shadow-inner border border-gray-200">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-black text-gray-900">Pilih Outlet</h3>
-                        <p class="text-sm font-medium text-gray-500 mt-2">Tentukan lokasi tempat Anda bertugas saat ini.</p>
+                <div class="mb-6">
+                    <div class="w-12 h-12 rounded-2xl bg-ink text-white flex items-center justify-center mb-5">
+                        <x-icon name="store" />
                     </div>
+                    <h2 class="text-2xl font-bold tracking-tight">Pilih Outlet</h2>
+                    <p class="text-sm text-zinc-500 mt-1">Tentukan lokasi tempat Anda bertugas saat ini.</p>
+                </div>
 
-                    <div class="mb-10">
-                        <div class="grid grid-cols-2 gap-4">
-                            @foreach($outlets as $outlet)
-                                <button type="button" wire:click="$set('selected_outlet_id', {{ $outlet->id }})"
-                                    class="py-5 px-3 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-3 transition-all duration-300 ease-in-out shadow-sm
-                                                                                                                                                                                                                                                    {{ $selected_outlet_id == $outlet->id ? 'border-gray-900 text-gray-900 bg-gray-900/5 ring-4 ring-gray-900/10' : 'border-gray-100 text-gray-500 hover:border-gray-300 hover:bg-gray-50' }}">
-                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M19 21V10l-7-5-7 5v11a2 2 0 002 2h10a2 2 0 002-2zM12 11v4M10 15h4"></path>
-                                    </svg>
-                                    <span class="text-sm text-center leading-tight">{{ $outlet->name }}</span>
-                                </button>
-                            @endforeach
-                        </div>
-                        @error('selected_outlet_id')
-                            <span class="text-red-500 text-xs mt-3 block text-center font-bold">{{ $message }}</span>
-                        @enderror
+                <form wire:submit="enterPos" class="space-y-5">
+                    <div class="grid grid-cols-2 gap-3">
+                        @foreach ($outlets as $outlet)
+                            <button type="button" wire:click="$set('selected_outlet_id', {{ $outlet->id }})"
+                                class="rounded-2xl border-2 p-4 text-left transition {{ $selected_outlet_id == $outlet->id ? 'border-ink bg-ink text-white' : 'border-zinc-200 hover:border-zinc-400' }}">
+                                <x-icon name="store" class="w-5 h-5 {{ $selected_outlet_id == $outlet->id ? 'text-white' : 'text-zinc-400' }}" />
+                                <p class="text-sm font-semibold mt-3 leading-tight">{{ $outlet->name }}</p>
+                            </button>
+                        @endforeach
                     </div>
+                    @error('selected_outlet_id') <span class="field-error">{{ $message }}</span> @enderror
 
-                    <button type="submit"
-                        class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all duration-300 shadow-lg shadow-gray-900/30 flex justify-center items-center gap-2">
-                        <span wire:loading.remove wire:target="enterPos">
-                            {{ Auth::user()->role === 'owner' ? 'Masuk ke Dashboard' : 'Mulai Sesi Kasir' }}
-                        </span>
-                        <span wire:loading wire:target="enterPos">Menyiapkan Sistem...</span>
-                        <svg wire:loading.remove wire:target="enterPos" class="w-5 h-5" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                        </svg>
+                    <button type="submit" class="btn-primary btn-lg w-full">
+                        <span wire:loading.remove wire:target="enterPos">{{ $pendingRole === 'owner' ? 'Masuk ke Dashboard' : 'Mulai Sesi Kasir' }}</span>
+                        <span wire:loading wire:target="enterPos">Menyiapkan...</span>
+                        <x-icon name="arrow-right" class="w-4 h-4" wire:loading.remove wire:target="enterPos" />
                     </button>
                 </form>
             @endif
+        </div>
 
+        <!-- Tile kecil info -->
+        <div class="tile lg:col-span-2 flex items-center gap-3 !py-4">
+            <div class="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center flex-shrink-0"><x-icon name="info" class="w-4 h-4" /></div>
+            <p class="text-xs text-zinc-500">Shift kasir dimulai otomatis setelah login dan ditutup saat logout.</p>
         </div>
     </div>
 </div>

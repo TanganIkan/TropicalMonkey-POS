@@ -7,42 +7,64 @@ use App\Models\Transaction;
 new #[Layout('components.layouts.app')]
     class extends Component {
     public Transaction $transaction;
+    public $autoPrint = false;
 
     public function mount(Transaction $transaction)
     {
-        $this->transaction = $transaction->load('items', 'outlet', 'user');
+        $this->transaction = $transaction->load('items', 'outlet', 'user', 'payments');
+        $this->autoPrint = (bool) session('print_receipt', false);
     }
 
     public function paymentLabel($method)
     {
-        return match ($method) {
-            'tunai' => 'CASH',
-            'qris' => 'QRIS',
-            'kartu_lokal' => 'DEBIT/CREDIT CARD',
-            'kartu_non_lokal' => 'INTERNATIONAL CARD',
-            default => strtoupper($method),
-        };
+        return \App\Models\PaymentMethod::allByCode()->get($method)?->receipt_label ?? strtoupper($method);
+    }
+
+    public function rate($rate)
+    {
+        return rtrim(rtrim(number_format($rate, 2, ',', '.'), '0'), ',');
     }
 };
 ?>
 
-<div class="p-4 md:p-8 w-full flex justify-center bg-gray-50/50 min-h-screen" x-data
-    x-init="setTimeout(() => window.print(), 500)">
-
-    <div class="w-full max-w-[80mm]">
-
-        <!-- Pesan Sukses Web -->
-        <div class="text-center mb-6 print:hidden w-full">
-            <div
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-900 text-white mb-4 shadow-lg shadow-gray-900/20">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                </svg>
+<div class="space-y-4" x-data x-init="@if ($autoPrint) setTimeout(() => window.print(), 500) @endif">
+    <div class="bento grid-cols-1 lg:grid-cols-5 items-start max-w-5xl mx-auto">
+        <!-- Info & aksi (tidak ikut tercetak) -->
+        <div class="lg:col-span-2 space-y-3 md:space-y-4 print:hidden">
+            <div class="tile-dark">
+                <div class="w-12 h-12 rounded-2xl bg-white text-ink flex items-center justify-center mb-5">
+                    <x-icon name="check" />
+                </div>
+                @if ($transaction->isVoid())
+                    <h1 class="text-2xl font-bold tracking-tight">Transaksi Dibatalkan</h1>
+                    <p class="text-sm text-white/60 mt-1">{{ $transaction->void_reason }}</p>
+                @else
+                    <h1 class="text-2xl font-bold tracking-tight">Transaction Successful</h1>
+                    @if ($autoPrint)
+                        <p class="text-sm text-white/60 mt-1">Receipt will be printed automatically.</p>
+                    @endif
+                @endif
+                <div class="mt-5 pt-5 border-t border-white/10">
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-white/50">Total</p>
+                    <p class="text-3xl font-bold tracking-tight mt-1">Rp {{ number_format($transaction->total, 0, ',', '.') }}</p>
+                    <p class="text-xs text-white/50 mt-1">{{ $transaction->order_id }} · {{ $transaction->created_at->format('d/m/Y H:i') }}</p>
+                </div>
             </div>
-            <h1 class="text-xl font-black text-gray-900 tracking-tight">Transaction Successful</h1>
-            <p class="text-sm text-gray-500 mt-1">Receipt will be printed automatically.</p>
+
+            <div class="tile !p-3 grid grid-cols-2 gap-2">
+                <button onclick="window.print()" class="btn-secondary">
+                    <x-icon name="printer" class="w-4 h-4" /> Reprint Receipt
+                </button>
+                <a href="/pos" wire:navigate class="btn-primary">
+                    <x-icon name="plus" class="w-4 h-4" /> New Transaction
+                </a>
+            </div>
         </div>
 
+        <!-- Struk -->
+        <div class="lg:col-span-3 flex justify-center">
+            {{-- theme-light: pratinjau struk selalu terang seperti kertas --}}
+            <div class="w-full max-w-[80mm] theme-light">
         <!-- AREA STRUK FISIK -->
         <div id="print-area"
             class="bg-white p-4 sm:p-6 shadow-sm font-mono text-sm relative border border-gray-200 print:border-none print:shadow-none print:p-0 w-full text-black">
@@ -88,11 +110,17 @@ new #[Layout('components.layouts.app')]
                         <div class="text-xs">
                             <div class="flex justify-between font-bold">
                                 <span class="truncate pr-2">{{ $item->product_name }}</span>
-                                <span>{{ number_format($item->subtotal, 0, ',', '.') }}</span>
+                                <span>{{ number_format($item->price * $item->quantity, 0, ',', '.') }}</span>
                             </div>
                             <div class="font-medium mt-0.5">
                                 {{ $item->quantity }} x {{ number_format($item->price, 0, ',', '.') }}
                             </div>
+                            @if ($item->discount_amount > 0)
+                                <div class="flex justify-between font-medium mt-0.5">
+                                    <span>DISC</span>
+                                    <span>-{{ number_format($item->discount_amount, 0, ',', '.') }}</span>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -105,12 +133,20 @@ new #[Layout('components.layouts.app')]
                     <span>{{ number_format($transaction->subtotal, 0, ',', '.') }}</span>
                 </div>
 
-                @if($transaction->tax_amount > 0)
+                @if($transaction->discount_amount > 0)
                     <div class="flex justify-between font-bold">
-                        <span>TAX (3%)</span>
-                        <span>{{ number_format($transaction->tax_amount, 0, ',', '.') }}</span>
+                        <span>DISCOUNT</span>
+                        <span>-{{ number_format($transaction->discount_amount, 0, ',', '.') }}</span>
                     </div>
                 @endif
+
+                {{-- Tarif pajak diambil dari data transaksi, bukan tarif yang berlaku sekarang --}}
+                @foreach($transaction->payments->where('tax_amount', '>', 0) as $payment)
+                    <div class="flex justify-between font-bold">
+                        <span>TAX ({{ $this->rate($payment->tax_rate) }}%)</span>
+                        <span>{{ number_format($payment->tax_amount, 0, ',', '.') }}</span>
+                    </div>
+                @endforeach
 
                 <div class="flex justify-between font-black text-sm pt-2 mt-2 tracking-tight">
                     <span>TOTAL</span>
@@ -120,45 +156,42 @@ new #[Layout('components.layouts.app')]
 
             <!-- Payment Details -->
             <div class="space-y-1.5 text-xs pt-3">
-                <div class="flex justify-between font-bold">
-                    <span>METHOD</span>
-                    <span>{{ $this->paymentLabel($transaction->payment_method) }}</span>
-                </div>
-
-                @if($transaction->payment_method === 'tunai')
+                @foreach($transaction->payments as $payment)
                     <div class="flex justify-between font-bold">
-                        <span>CASH</span>
-                        <span>{{ number_format($transaction->cash_received, 0, ',', '.') }}</span>
+                        <span>{{ $transaction->payments->count() > 1 ? $this->paymentLabel($payment->payment_method) : 'METHOD' }}</span>
+                        <span>{{ $transaction->payments->count() > 1 ? number_format($payment->amount + $payment->tax_amount, 0, ',', '.') : $this->paymentLabel($payment->payment_method) }}</span>
                     </div>
-                    <div class="flex justify-between font-bold mt-1">
-                        <span>CHANGE</span>
-                        <span>{{ number_format($transaction->change_amount, 0, ',', '.') }}</span>
-                    </div>
+
+                    @if($payment->cash_received !== null)
+                        <div class="flex justify-between font-bold">
+                            <span>CASH</span>
+                            <span>{{ number_format($payment->cash_received, 0, ',', '.') }}</span>
+                        </div>
+                        <div class="flex justify-between font-bold mt-1">
+                            <span>CHANGE</span>
+                            <span>{{ number_format($payment->change_amount, 0, ',', '.') }}</span>
+                        </div>
+                    @endif
+                @endforeach
+
+                @if($transaction->isVoid())
+                    <div class="text-center font-black text-sm mt-3 border-2 border-black py-1">*** VOID ***</div>
                 @endif
             </div>
 
             <!-- Footer -->
             <div class="mt-8 text-center text-xs font-bold space-y-1">
-                <p>Thank you for your visit!</p>
-                <p class="font-medium text-[10px]">Items purchased cannot be returned or exchanged.</p>
+                @foreach (preg_split('/\r?\n/', (string) \App\Models\Setting::get('receipt_footer')) as $i => $line)
+                    <p class="{{ $i > 0 ? 'font-medium text-[10px]' : '' }}">{{ $line }}</p>
+                @endforeach
             </div>
 
             <div
                 class="absolute -bottom-1.5 left-0 right-0 h-3 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwb2x5Z29uIHBvaW50cz0iMCw4IDQsMCA4LDgiIGZpbGw9IiNmOWZhZmIiLz48L3N2Zz4=')] bg-repeat-x print:hidden">
             </div>
         </div>
-
-        <div class="flex flex-col gap-3 mt-8 print:hidden">
-            <button onclick="window.print()"
-                class="w-full py-3 bg-white border-2 border-gray-200 text-gray-900 rounded-xl font-bold hover:bg-gray-50 transition shadow-sm">
-                Reprint Receipt
-            </button>
-            <a href="/pos" wire:navigate
-                class="w-full text-center py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition shadow-lg">
-                New Transaction
-            </a>
+            </div>
         </div>
-
     </div>
 
     <!-- CLEAN CSS PRINT (Dengan Font Diperbesar & Garis Ditebalkan) -->

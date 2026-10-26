@@ -10,7 +10,8 @@ Route::get('/', function () {
 // Guest only — kalau sudah login, gak boleh akses ini lagi
 Volt::route('/login', 'auth.login')->middleware('guest')->name('login');
 
-Route::middleware('auth')->group(function () {
+// pos.session: user harus aktif & sudah memilih outlet
+Route::middleware(['auth', 'pos.session'])->group(function () {
     // Bisa diakses staff maupun owner
     Volt::route('/pos', 'pos.index')->name('pos');
     Volt::route('/pos/checkout', 'pos.checkout')->name('pos.checkout');
@@ -22,6 +23,8 @@ Route::middleware('auth')->group(function () {
     Volt::route('/products/{product}/add-stock', 'products.add-stock')->name('products.add-stock');
 
     Volt::route('/stocks/history', 'stocks.history')->name('stocks.history');
+    Volt::route('/stocks/opname', 'stocks.opname')->name('stocks.opname');
+    Volt::route('/stocks/transfer', 'stocks.transfer')->name('stocks.transfer');
 
     Volt::route('/categories-brands', 'categories-brands.index')->name('categories-brands.index');
 
@@ -33,5 +36,9 @@ Route::middleware('auth')->group(function () {
         Volt::route('/staff', 'staff.index')->name('staff.index');
         Volt::route('/products/top', 'products.top')->name('products.top');
         Volt::route('/transactions', 'transactions.index')->name('transactions.index');
+        Volt::route('/reports', 'reports.index')->name('reports.index');
+        Volt::route('/monitoring', 'monitoring.index')->name('monitoring.index');
+        Volt::route('/outlets', 'outlets.index')->name('outlets.index');
+        Volt::route('/settings', 'settings.index')->name('settings.index');
     });
 });

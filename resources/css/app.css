@@ -1,3 +1,383 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===== Tema terang / gelap =====
+ * Warna Tailwind (white, zinc, ink, canvas, serta red/emerald/amber yang dipakai)
+ * memakai variabel di bawah. Mode gelap membalik palet, sehingga semua halaman
+ * ikut berganti tema tanpa perlu class dark: di setiap elemen.
+ * .theme-light memaksa tema terang (mis. pratinjau struk), begitu juga saat dicetak.
+ */
+@layer base {
+    :root,
+    .dark .theme-light {
+        --white: 255 255 255;
+        --canvas: 244 244 245;
+        --ink: 10 10 10;
+        --ink-soft: 39 39 42;
+        --zinc-50: 250 250 250;
+        --zinc-100: 244 244 245;
+        --zinc-200: 228 228 231;
+        --zinc-300: 212 212 216;
+        --zinc-400: 161 161 170;
+        --zinc-500: 113 113 122;
+        --zinc-600: 82 82 91;
+        --zinc-700: 63 63 70;
+        --zinc-800: 39 39 42;
+        --zinc-900: 24 24 27;
+        --zinc-950: 9 9 11;
+        --red-50: 254 242 242;
+        --red-100: 254 226 226;
+        --red-200: 254 202 202;
+        --red-300: 252 165 165;
+        --red-400: 248 113 113;
+        --red-500: 239 68 68;
+        --red-600: 220 38 38;
+        --red-700: 185 28 28;
+        --emerald-50: 236 253 245;
+        --emerald-100: 209 250 229;
+        --emerald-500: 16 185 129;
+        --emerald-600: 5 150 105;
+        --emerald-700: 4 120 87;
+        --amber-50: 255 251 235;
+        --amber-100: 254 243 199;
+        --amber-400: 251 191 36;
+        --amber-600: 217 119 6;
+        --amber-700: 180 83 9;
+        --amber-800: 146 64 14;
+    }
+
+    .dark {
+        --white: 24 24 27;
+        --canvas: 9 9 11;
+        --ink: 250 250 250;
+        --ink-soft: 212 212 216;
+        --zinc-50: 32 32 36;
+        --zinc-100: 39 39 42;
+        --zinc-200: 52 52 58;
+        --zinc-300: 70 70 77;
+        --zinc-400: 113 113 122;
+        --zinc-500: 161 161 170;
+        --zinc-600: 190 190 197;
+        --zinc-700: 212 212 216;
+        --zinc-800: 228 228 231;
+        --zinc-900: 244 244 245;
+        --zinc-950: 250 250 250;
+        --red-50: 45 18 20;
+        --red-100: 69 26 30;
+        --red-200: 99 35 40;
+        --red-300: 220 38 38;
+        --red-400: 248 113 113;
+        --red-500: 248 113 113;
+        --red-600: 239 68 68;
+        --red-700: 248 113 113;
+        --emerald-50: 6 40 30;
+        --emerald-100: 10 60 45;
+        --emerald-500: 16 185 129;
+        --emerald-600: 52 211 153;
+        --emerald-700: 110 231 183;
+        --amber-50: 45 33 10;
+        --amber-100: 66 48 14;
+        --amber-400: 251 191 36;
+        --amber-600: 251 191 36;
+        --amber-700: 252 211 77;
+        --amber-800: 253 230 138;
+    }
+
+    .dark {
+        color-scheme: dark;
+    }
+
+    /* Warna metode bayar diatur owner (umumnya abu/hitam). Di mode gelap dipetakan ke rentang
+       tengah (gelap diterangkan, terang sedikit diredam) agar semua slice kontras dengan latar
+       gelap tanpa mengubah urutan terang-gelapnya. */
+    .dark .pay-color {
+        filter: contrast(0.6) brightness(1.3);
+    }
+
+    @media print {
+        .dark {
+            --white: 255 255 255;
+            --canvas: 244 244 245;
+            --ink: 10 10 10;
+            --ink-soft: 39 39 42;
+            --zinc-50: 250 250 250;
+            --zinc-100: 244 244 245;
+            --zinc-200: 228 228 231;
+            --zinc-300: 212 212 216;
+            --zinc-400: 161 161 170;
+            --zinc-500: 113 113 122;
+            --zinc-600: 82 82 91;
+            --zinc-700: 63 63 70;
+            --zinc-800: 39 39 42;
+            --zinc-900: 24 24 27;
+            --zinc-950: 9 9 11;
+            --red-50: 254 242 242;
+            --red-100: 254 226 226;
+            --red-200: 254 202 202;
+            --red-300: 252 165 165;
+            --red-400: 248 113 113;
+            --red-500: 239 68 68;
+            --red-600: 220 38 38;
+            --red-700: 185 28 28;
+            --emerald-50: 236 253 245;
+            --emerald-100: 209 250 229;
+            --emerald-500: 16 185 129;
+            --emerald-600: 5 150 105;
+            --emerald-700: 4 120 87;
+            --amber-50: 255 251 235;
+            --amber-100: 254 243 199;
+            --amber-400: 251 191 36;
+            --amber-600: 217 119 6;
+            --amber-700: 180 83 9;
+            --amber-800: 146 64 14;
+        }
+    }
+}
+
+/* ===== Dasar ===== */
+@layer base {
+    html {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-canvas font-sans text-zinc-900 antialiased;
+    }
+
+    [x-cloak] {
+        display: none !important;
+    }
+
+    /* Checkbox, radio, range mengikuti tema hitam */
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"] {
+        accent-color: rgb(var(--ink));
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+        @apply appearance-none m-0;
+    }
+}
+
+/* ===== Komponen bento (dipakai di semua halaman) ===== */
+@layer components {
+    /* Tile = kotak bento */
+    .tile {
+        @apply bg-white rounded-3xl border border-zinc-200/80 shadow-tile p-5 md:p-6;
+    }
+    .tile-dark {
+        @apply bg-ink text-white rounded-3xl p-5 md:p-6;
+    }
+    .tile-muted {
+        @apply bg-zinc-50 rounded-2xl border border-zinc-200/80 p-4;
+    }
+    .tile-flush {
+        @apply bg-white rounded-3xl border border-zinc-200/80 shadow-tile overflow-hidden;
+    }
+    .tile-title {
+        @apply text-base font-semibold text-zinc-900;
+    }
+    .tile-sub {
+        @apply text-xs text-zinc-500 mt-0.5;
+    }
+
+    .bento {
+        @apply grid gap-3 md:gap-4;
+    }
+
+    /* Header halaman */
+    .page-title {
+        @apply text-2xl md:text-3xl font-bold tracking-tight text-zinc-900;
+    }
+    .page-sub {
+        @apply text-sm text-zinc-500 mt-1;
+    }
+
+    /* Angka statistik */
+    .stat-label {
+        @apply text-[11px] font-semibold uppercase tracking-wider text-zinc-500;
+    }
+    .stat-value {
+        @apply text-2xl md:text-3xl font-bold tracking-tight mt-1 truncate;
+    }
+
+    /* Tombol */
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 select-none disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 active:scale-[0.98];
+    }
+    .btn-primary {
+        @apply btn bg-ink text-white hover:bg-ink-soft;
+    }
+    .btn-secondary {
+        @apply btn bg-white text-zinc-800 border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300;
+    }
+    .btn-ghost {
+        @apply btn text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900;
+    }
+    .btn-danger {
+        @apply btn bg-white text-red-600 border border-red-200 hover:bg-red-50;
+    }
+    .btn-lg {
+        @apply px-5 py-3.5 text-base rounded-2xl;
+    }
+    .btn-sm {
+        @apply px-3 py-1.5 text-xs rounded-xl;
+    }
+    .btn-icon {
+        @apply inline-flex items-center justify-center w-9 h-9 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition;
+    }
+
+    /* Form */
+    .label {
+        @apply block text-xs font-semibold text-zinc-600 mb-1.5;
+    }
+    .input {
+        @apply w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition focus:bg-white focus:border-ink focus:ring-2 focus:ring-ink/10 disabled:opacity-60;
+    }
+    .input-lg {
+        @apply input py-3.5 text-base font-semibold;
+    }
+    .select {
+        @apply input appearance-none pr-10 cursor-pointer bg-no-repeat;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2371717a'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3e%3c/svg%3e");
+        background-position: right 0.85rem center;
+        background-size: 1rem;
+    }
+    .checkbox {
+        @apply w-4 h-4 rounded border-zinc-300 text-ink focus:ring-ink;
+    }
+    .field-error {
+        @apply block text-xs font-medium text-red-600 mt-1.5;
+    }
+
+    /* Badge */
+    .badge {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap;
+    }
+    .badge-dark {
+        @apply badge bg-ink text-white;
+    }
+    .badge-light {
+        @apply badge bg-zinc-100 text-zinc-700 border border-zinc-200;
+    }
+    .badge-success {
+        @apply badge bg-emerald-50 text-emerald-700 border border-emerald-100;
+    }
+    .badge-warning {
+        @apply badge bg-amber-50 text-amber-700 border border-amber-100;
+    }
+    .badge-danger {
+        @apply badge bg-red-50 text-red-700 border border-red-100;
+    }
+
+    /* Pilihan berbentuk pil (filter, metode bayar, dll) */
+    .chip {
+        @apply inline-flex items-center justify-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 transition hover:border-zinc-400 cursor-pointer;
+    }
+    .chip-active {
+        @apply chip border-ink bg-ink text-white hover:border-ink;
+    }
+
+    /* Tabel */
+    .table {
+        @apply w-full text-left text-sm;
+    }
+    .table thead th {
+        @apply px-4 md:px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 bg-zinc-50 whitespace-nowrap;
+    }
+    .table tbody td {
+        @apply px-4 md:px-5 py-3.5 align-middle;
+    }
+    .table tbody tr {
+        @apply border-t border-zinc-100 transition-colors hover:bg-zinc-50/70;
+    }
+
+    /* Navigasi sidebar */
+    .nav-link {
+        @apply flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900;
+    }
+    .nav-link-active {
+        @apply nav-link bg-ink text-white hover:bg-ink hover:text-white;
+    }
+}
+
+/* ===== Notyf (toast) bergaya hitam-putih ===== */
+.notyf {
+    font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+.notyf__toast {
+    border-radius: 1.25rem !important;
+    padding: 0 !important;
+    max-width: 24rem !important;
+    box-shadow: 0 16px 40px -16px rgba(10, 10, 10, 0.35) !important;
+}
+.notyf__ripple {
+    display: none !important;
+}
+.notyf__wrapper {
+    padding: 0.9rem 1rem !important;
+    align-items: flex-start !important;
+}
+.notyf__toast--dismissible .notyf__wrapper {
+    padding-right: 2.75rem !important;
+}
+.notyf__dismiss {
+    right: 0.35rem !important;
+}
+.notyf__message {
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+.notyf__message strong {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.1rem;
+}
+.notyf__icon {
+    margin-top: 0.1rem;
+}
+.notyf__dismiss-btn {
+    background: transparent !important;
+    opacity: 0.6 !important;
+}
+.notyf__dismiss-btn:hover {
+    opacity: 1 !important;
+}
+.toast-success { background: #0a0a0a !important; color: #fff !important; }
+.toast-error { background: #b91c1c !important; color: #fff !important; }
+.toast-warning { background: #27272a !important; color: #fff !important; }
+.toast-info { background: #fff !important; color: #0a0a0a !important; border: 1px solid #e4e4e7; }
+.toast-info .notyf__dismiss-btn::before,
+.toast-info .notyf__dismiss-btn::after { background: #0a0a0a !important; }
+
+.dark .toast-success { background: #fafafa !important; color: #0a0a0a !important; }
+.dark .toast-icon-success { color: #0a0a0a !important; }
+.dark .toast-success .notyf__dismiss-btn::before,
+.dark .toast-success .notyf__dismiss-btn::after { background: #0a0a0a !important; }
+.dark .toast-info { background: #27272a !important; color: #fafafa !important; border-color: #3f3f46; }
+.dark .toast-icon-info { color: #fafafa !important; }
+.dark .toast-info .notyf__dismiss-btn::before,
+.dark .toast-info .notyf__dismiss-btn::after { background: #fafafa !important; }
+
+.toast-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: currentColor;
+    -webkit-mask: var(--icon) no-repeat center / contain;
+    mask: var(--icon) no-repeat center / contain;
+}
+.toast-icon-success { --icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M5 13l4 4L19 7'/%3e%3c/svg%3e"); color: #fff; }
+.toast-icon-error { --icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 18L18 6M6 6l12 12'/%3e%3c/svg%3e"); color: #fff; }
+.toast-icon-warning { --icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z'/%3e%3c/svg%3e"); color: #fbbf24; }
+.toast-icon-info { --icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'/%3e%3c/svg%3e"); color: #0a0a0a; }
+
+/* ===== Cetak ===== */
+@media print {
+    body {
+        background: #fff !important;
+    }
+}

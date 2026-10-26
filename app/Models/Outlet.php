@@ -14,9 +14,20 @@ class Outlet extends Model
         'is_active',
     ];
 
-    // Relasi: Satu outlet memiliki banyak produk
-    public function products(): HasMany
+    protected function casts(): array
     {
-        return $this->hasMany(Product::class);
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(Stock::class);
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
     }
 }

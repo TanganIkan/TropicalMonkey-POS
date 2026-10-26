@@ -2,12 +2,11 @@
 
 use Livewire\Volt\Component;
 use Livewire\Attributes\Layout;
+use App\Exceptions\PosException;
 use App\Models\Product;
-use App\Models\Stock;
 use App\Models\Outlet;
-use App\Models\ProductVariant;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
+use App\Services\ProductService;
+use App\Services\StockService;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public Product $product;
@@ -22,34 +21,15 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $newBarcode = '';
     public $notaNumber = '';
 
+    // Edit varian
+    public $editingVariantId = null;
+    public $editVariant = [];
+
     public function mount(Product $product)
     {
-        $outletId = session('current_outlet_id');
-
-        // LAPISAN 1: Jika belum pilih outlet / sesi hilang, PAKSA LOGOUT
-        if (!$outletId) {
-            Auth::logout();
-            session()->invalidate();
-            session()->regenerateToken();
-
-            session()->flash('error', 'Sesi toko terputus. Silakan login dan pilih outlet kembali.');
-            $this->redirect('/login', navigate: true);
-            return;
-        }
-
+        // Outlet aktif sudah dijamin ada oleh middleware pos.session
         $this->product = $product;
-        $this->outlet = Outlet::find($outletId);
-
-        // LAPISAN 2: Jika ID outlet ada tapi dihapus dari database, PAKSA LOGOUT
-        if (!$this->outlet) {
-            Auth::logout();
-            session()->invalidate();
-            session()->regenerateToken();
-
-            session()->flash('error', 'Outlet tidak valid. Silakan login kembali.');
-            $this->redirect('/login', navigate: true);
-            return;
-        }
+        $this->outlet = Outlet::find(session('current_outlet_id'));
 
         $this->initQuantities();
     }
@@ -57,7 +37,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function initQuantities()
     {
         if ($this->product->has_variants) {
-            foreach ($this->product->variants as $variant) {
+            foreach ($this->product->activeVariants as $variant) {
                 if (!isset($this->addQuantities[$variant->id])) {
                     $this->addQuantities[$variant->id] = 0;
                 }
@@ -67,11 +47,17 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
+    // Hanya varian aktif milik produk ini yang boleh di-restock
+    protected function allowedQuantityKeys(): array
+    {
+        return $this->product->has_variants
+            ? $this->product->activeVariants()->pluck('id')->all()
+            : ['single'];
+    }
+
     public function getCurrentStock($variantId = null)
     {
-        $stock = Stock::where('product_id', $this->product->id)->where('outlet_id', $this->outlet->id)->where('product_variant_id', $variantId)->first();
-
-        return $stock ? $stock->quantity : 0;
+        return app(StockService::class)->available($this->product->id, $variantId, $this->outlet->id);
     }
 
     public function toggleVariantForm()
@@ -83,46 +69,49 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
-    public function saveNewVariant()
+    public function saveNewVariant(ProductService $products)
     {
         $this->validate(
             [
                 'newSize' => 'required|string|max:50',
                 'newColor' => 'required|string|max:50',
-                'newSku' => 'required|string|unique:product_variants,sku',
-                'newBarcode' => 'nullable|string|unique:product_variants,barcode',
+                'newSku' => 'required|string',
+                'newBarcode' => 'nullable|string',
             ],
             [
                 'newSize.required' => 'Ukuran wajib diisi.',
                 'newColor.required' => 'Warna wajib diisi.',
                 'newSku.required' => 'SKU wajib diisi.',
-                'newSku.unique' => 'SKU ini sudah dipakai varian lain.',
-                'newBarcode.unique' => 'Barcode ini sudah dipakai varian lain.',
             ],
         );
 
-        $variant = ProductVariant::create([
-            'product_id' => $this->product->id,
-            'size' => trim($this->newSize),
-            'color' => trim($this->newColor),
-            'sku' => trim($this->newSku),
-            'barcode' => trim($this->newBarcode) ?: null,
-        ]);
+        // SKU/barcode harus unik di semua produk & varian
+        foreach (['newSku' => 'SKU', 'newBarcode' => 'Barcode'] as $field => $label) {
+            if ($products->codeTaken($this->$field)) {
+                $this->addError($field, "{$label} ini sudah dipakai produk/varian lain.");
+                return;
+            }
+        }
 
-        $this->product->refresh();
+        if ($this->product->variants()->where('size', trim($this->newSize))->where('color', trim($this->newColor))->exists()) {
+            $this->addError('newSize', 'Varian dengan ukuran & warna ini sudah ada (cek juga daftar varian nonaktif).');
+            return;
+        }
+
+        $products->addVariant($this->product, $this->newSize, $this->newColor, $this->newSku, $this->newBarcode);
         $this->initQuantities();
 
         $this->isAddingVariant = false;
         $this->reset(['newSize', 'newColor', 'newSku', 'newBarcode']);
 
-        $this->dispatch('swal', [
+        $this->dispatch('notify', [
             'title' => 'Varian Ditambahkan!',
             'text' => 'Varian baru berhasil disimpan. Silakan isi jumlah stoknya.',
             'icon' => 'success',
         ]);
     }
 
-    public function save()
+    public function save(StockService $stocks)
     {
         $this->validate(
             [
@@ -133,74 +122,18 @@ new #[Layout('components.layouts.app')] class extends Component {
             ],
         );
 
-        $hasStockAdded = false;
+        $quantities = array_intersect_key($this->addQuantities, array_flip($this->allowedQuantityKeys()));
+        $added = $stocks->restock($this->product->id, $this->outlet->id, $quantities, $this->notaNumber);
 
-        DB::transaction(function () use (&$hasStockAdded) {
-            if ($this->product->has_variants) {
-                foreach ($this->addQuantities as $variantId => $qtyToAdd) {
-                    if ($qtyToAdd > 0) {
+        if ($added > 0) {
+            app(\App\Services\ActivityLogger::class)->log('stock.restock', "Restock {$this->product->name}: " . array_sum(array_map('intval', $quantities)) . ' unit' . ($this->notaNumber ? " (nota {$this->notaNumber})" : ''), $this->product);
 
-                        // 1. CATAT KE RIWAYAT (Stock History)
-                        \App\Models\StockHistory::create([
-                            'product_id' => $this->product->id,
-                            'product_variant_id' => $variantId,
-                            'outlet_id' => $this->outlet->id,
-                            'quantity' => $qtyToAdd,
-                            'type' => 'in',
-                            'nota_number' => trim($this->notaNumber) ?: null, // Simpan nota
-                        ]);
-
-                        // 2. UPDATE MASTER STOK
-                        $stock = Stock::firstOrCreate(
-                            [
-                                'product_id' => $this->product->id,
-                                'product_variant_id' => $variantId,
-                                'outlet_id' => $this->outlet->id,
-                            ],
-                            ['quantity' => 0],
-                        );
-
-                        $stock->increment('quantity', $qtyToAdd);
-                        $hasStockAdded = true;
-                    }
-                }
-            } else {
-                $qtyToAdd = $this->addQuantities['single'] ?? 0;
-
-                if ($qtyToAdd > 0) {
-
-                    // 1. CATAT KE BUKU RIWAYAT (Stock History)
-                    \App\Models\StockHistory::create([
-                        'product_id' => $this->product->id,
-                        'product_variant_id' => null,
-                        'outlet_id' => $this->outlet->id,
-                        'quantity' => $qtyToAdd,
-                        'type' => 'in',
-                        'nota_number' => trim($this->notaNumber) ?: null, // Simpan nota
-                    ]);
-
-                    // 2. UPDATE MASTER STOK
-                    $stock = Stock::firstOrCreate(
-                        [
-                            'product_id' => $this->product->id,
-                            'product_variant_id' => null,
-                            'outlet_id' => $this->outlet->id,
-                        ],
-                        ['quantity' => 0],
-                    );
-
-                    $stock->increment('quantity', $qtyToAdd);
-                    $hasStockAdded = true;
-                }
-            }
-        });
-
-        if ($hasStockAdded) {
             // Reset form nota setelah sukses
             $this->reset('notaNumber');
-            $this->dispatch('stock-saved');
+            session()->flash('notify', ['title' => 'Stok Tersimpan', 'text' => 'Stok barang masuk berhasil ditambahkan.', 'icon' => 'success']);
+            $this->redirect('/products', navigate: true);
         } else {
-            $this->dispatch('swal', [
+            $this->dispatch('notify', [
                 'title' => 'Tidak Ada Perubahan',
                 'text' => 'Kamu belum memasukkan angka stok baru apapun.',
                 'icon' => 'info',
@@ -208,244 +141,199 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
-    public function deleteVariant($variantId)
+    public function deleteVariant(ProductService $products, $variantId)
     {
-        try {
-            DB::transaction(function () use ($variantId) {
-                \App\Models\Stock::where('product_variant_id', $variantId)->delete();
-                \App\Models\StockHistory::where('product_variant_id', $variantId)->delete();
-                \App\Models\ProductVariant::where('id', $variantId)->delete();
-            });
+        if (!$this->product->variants()->whereKey($variantId)->exists()) {
+            return;
+        }
 
-            $this->product->refresh();
-            unset($this->addQuantities[$variantId]);
+        $result = $products->deleteVariant($variantId);
 
-            $this->dispatch('swal', [
-                'title' => 'Dihapus!',
-                'text' => 'Varian berhasil dihapus permanen.',
+        $this->product->refresh();
+        unset($this->addQuantities[$variantId]);
+
+        $this->dispatch('notify', $result === 'deleted'
+            ? ['title' => 'Dihapus!', 'text' => 'Varian berhasil dihapus permanen.', 'icon' => 'success']
+            : [
+                'title' => 'Varian Dinonaktifkan',
+                'text' => 'Varian ini sudah punya riwayat stok/penjualan, jadi dinonaktifkan (tidak bisa dijual & di-restock) agar riwayatnya tetap utuh. Bisa diaktifkan kembali kapan saja.',
                 'icon' => 'success',
             ]);
+    }
 
-        } catch (\Illuminate\Database\QueryException $e) {
-            if ($e->getCode() == '23000') {
-                $this->dispatch('swal', [
-                    'title' => 'Tidak Bisa Dihapus!',
-                    'text' => 'Varian ini sudah memiliki riwayat transaksi/penjualan. Demi keamanan laporan keuangan, varian ini tidak bisa dihapus.',
-                    'icon' => 'error'
-                ]);
-            } else {
-                $this->dispatch('swal', [
-                    'title' => 'Terjadi Kesalahan!',
-                    'text' => 'Gagal menghapus varian: ' . $e->getMessage(),
-                    'icon' => 'error'
-                ]);
-            }
+    public function openEditVariant($variantId)
+    {
+        $variant = $this->product->variants()->findOrFail($variantId);
+
+        $this->editingVariantId = $variant->id;
+        $this->editVariant = $variant->only(['size', 'color', 'sku', 'barcode', 'sell_price', 'cost_price']);
+    }
+
+    public function cancelEditVariant()
+    {
+        $this->reset(['editingVariantId', 'editVariant']);
+    }
+
+    public function saveVariant(ProductService $products)
+    {
+        $variant = $this->product->variants()->findOrFail($this->editingVariantId);
+
+        try {
+            $products->updateVariant($variant, $this->editVariant);
+        } catch (PosException $e) {
+            $this->dispatch('notify', $e->toNotify());
+            return;
         }
+
+        $this->product->refresh();
+        $this->cancelEditVariant();
+        $this->dispatch('notify', ['title' => 'Varian Disimpan', 'text' => 'Data varian berhasil diperbarui.', 'icon' => 'success']);
+    }
+
+    public function activateVariant(ProductService $products, $variantId)
+    {
+        if (!$this->product->variants()->whereKey($variantId)->exists()) {
+            return;
+        }
+
+        $products->activateVariant($variantId);
+        $this->product->refresh();
+        $this->initQuantities();
+
+        $this->dispatch('notify', ['title' => 'Diaktifkan!', 'text' => 'Varian bisa dijual dan di-restock kembali.', 'icon' => 'success']);
     }
 };
 ?>
 
-<div class="p-4 md:p-6 lg:p-8 flex flex-col space-y-4 md:space-y-6 bg-gray-50/30 min-h-screen" x-data
-    @stock-saved.window="
-        Swal.fire({
-            title: 'Stok Tersimpan!',
-            text: 'Jumlah stok barang masuk berhasil ditambahkan ke sistem.',
-            icon: 'success',
-            confirmButtonColor: '#111827',
-            heightAuto: false,
-            scrollbarPadding: false
-        }).then(() => {
-            Livewire.navigate('/products');
-        })">
+@php $rp = fn($n) => 'Rp ' . number_format($n, 0, ',', '.'); @endphp
 
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-4">
-        <div>
-            <a href="/products" wire:navigate
-                class="text-sm text-gray-500 hover:text-gray-900 flex items-center mb-2 transition-all duration-300 ease-in-out font-medium">
-                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-                Kembali ke Data Produk
-            </a>
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Barang Masuk (Tambah Stok)</h1>
-        </div>
-        <div class="flex gap-2 sm:gap-3 w-full sm:w-auto">
-            <a href="/products" wire:navigate
-                class="flex-1 sm:flex-none flex items-center justify-center px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-50 hover:border-gray-300 transition-all duration-300 ease-in-out shadow-sm">Batal</a>
-            <button type="submit" form="stockForm"
-                class="flex-1 sm:flex-none flex items-center justify-center px-6 py-2.5 bg-gray-900 text-white rounded-lg font-bold hover:bg-black transition-all duration-300 ease-in-out shadow-lg shadow-gray-900/20"
-                wire:loading.attr="disabled" wire:target="save">
-                <span wire:loading.remove wire:target="save">Simpan Stok Masuk</span>
-                <span wire:loading wire:target="save">Memproses...</span>
-            </button>
-        </div>
-    </div>
+<div class="space-y-4">
+    <x-ui.page-header title="Kelola Stok & Varian" back="/products" back-label="Data produk">
+        <a href="/products" wire:navigate class="btn-secondary">Batal</a>
+        <button type="submit" form="stockForm" class="btn-primary" wire:loading.attr="disabled" wire:target="save">
+            <span wire:loading.remove wire:target="save">Simpan Stok Masuk</span>
+            <span wire:loading wire:target="save">Memproses...</span>
+        </button>
+    </x-ui.page-header>
 
-    <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-8 shadow-sm">
-        <!-- Info Produk -->
-        <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
-            <div
-                class="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+    <div class="bento grid-cols-1 md:grid-cols-3">
+        <!-- Info produk -->
+        <div class="tile md:col-span-2 flex items-center gap-4">
+            <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-zinc-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                 @if ($product->image)
                     <img src="{{ asset('storage/' . $product->image) }}" class="w-full h-full object-cover">
                 @else
-                    <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
-                        </path>
-                    </svg>
+                    <x-icon name="image" class="w-6 h-6 text-zinc-300" />
                 @endif
             </div>
-            <div>
-                <h2 class="text-xl md:text-2xl font-bold text-gray-900">{{ $product->name }}</h2>
-                <p class="text-sm font-medium text-gray-500 mt-1">
-                    {{ $product->has_variants ? 'Produk Bervarian' : 'SKU: ' . ($product->sku ?? 'N/A') }}
-                </p>
+            <div class="min-w-0">
+                <h2 class="text-xl md:text-2xl font-bold tracking-tight truncate">{{ $product->name }}</h2>
+                <div class="flex flex-wrap gap-1.5 mt-1.5">
+                    <span class="badge-light">{{ $product->has_variants ? 'Produk Bervarian' : 'SKU: ' . ($product->sku ?? 'N/A') }}</span>
+                    <span class="badge-light">{{ $rp($product->sell_price) }}</span>
+                </div>
             </div>
         </div>
+        <div class="tile-dark flex flex-col justify-center">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-white/50">Outlet</p>
+            <p class="text-lg font-semibold mt-1 truncate">{{ $outlet->name }}</p>
+            <p class="text-xs text-white/50 mt-1">Stok masuk dicatat untuk outlet ini.</p>
+        </div>
+    </div>
 
-        {{-- <div class="mb-6 p-5 bg-blue-50/50 border border-blue-100 rounded-xl">
-            <label class="block text-sm font-bold text-gray-900 mb-1.5 flex items-center gap-2">
-                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-                    </path>
-                </svg>
-                Nomor Nota / Surat Jalan (Opsional)
-            </label>
-            <input type="text" wire:model="notaNumber" placeholder="Contoh: INV-2026-001"
-                class="w-full md:w-1/2 text-sm px-4 py-2.5 border border-gray-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm transition-all">
-            <p class="text-xs text-gray-500 mt-2 font-medium">Nomor nota ini akan dilampirkan ke semua varian yang diisi
-                stoknya di bawah.</p>
-        </div> --}}
+    @if ($product->has_variants)
+        <div class="tile" x-data="{ addingVariant: @entangle('isAddingVariant') }">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <h3 class="tile-title">Daftar Varian</h3>
+                <button type="button" @click="addingVariant = !addingVariant" class="btn-secondary btn-sm">
+                    <x-icon name="plus" class="w-4 h-4 transition" ::class="addingVariant && 'rotate-45'" />
+                    <span x-text="addingVariant ? 'Batal Tambah' : 'Tambah Varian Baru'"></span>
+                </button>
+            </div>
 
-        @if ($product->has_variants)
-            <div x-data="{ addingVariant: @entangle('isAddingVariant') }">
-                <div class="flex justify-between items-center mb-5">
-                    <h3 class="font-bold text-gray-900 text-lg">Daftar Varian</h3>
-                    <button type="button" @click="addingVariant = !addingVariant"
-                        class="text-sm font-bold flex items-center gap-1.5 transition-all duration-300 ease-in-out px-3 py-1.5 rounded-lg border"
-                        :class="addingVariant ? 'text-gray-500 bg-gray-50 border-gray-200 hover:text-gray-900 hover:bg-gray-100' : 'text-gray-900 bg-white border-gray-200 shadow-sm hover:border-gray-900'">
-                        <svg class="w-4 h-4 transform transition-transform duration-300 ease-in-out"
-                            :class="addingVariant ? 'rotate-45' : 'rotate-0'" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                        </svg>
-                        <span x-text="addingVariant ? 'Batal Tambah' : 'Tambah Varian Baru'"></span>
-                    </button>
+            <!-- Form tambah varian -->
+            <div x-show="addingVariant" x-cloak x-transition class="tile-muted mb-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="label">Ukuran</label>
+                        <input type="text" wire:model="newSize" placeholder="XL, 42" class="input !bg-white">
+                        @error('newSize') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="label">Warna</label>
+                        <input type="text" wire:model="newColor" placeholder="Merah, Hitam" class="input !bg-white">
+                        @error('newColor') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="label">SKU baru</label>
+                        <input type="text" wire:model="newSku" placeholder="Kode unik" class="input !bg-white font-mono">
+                        @error('newSku') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="label">Barcode</label>
+                        <input type="text" wire:model="newBarcode" wire:keydown.enter.prevent="saveNewVariant" placeholder="Scan di sini" class="input !bg-white font-mono">
+                        @error('newBarcode') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
                 </div>
-
-                <!-- Form Tambah Varian -->
-                <div x-show="addingVariant" x-transition:enter="transition-all ease-in-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-[-10px] scale-95"
-                    x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                    x-transition:leave="transition-all ease-in-out duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-                    x-transition:leave-end="opacity-0 translate-y-[-10px] scale-95"
-                    class="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-6 shadow-inner" style="display: none;">
-
-                    <div class="flex items-center gap-2 mb-5 text-gray-900">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z">
-                            </path>
-                        </svg>
-                        <h4 class="font-bold text-sm">Informasi Varian Baru</h4>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Ukuran</label>
-                            <input type="text" wire:model="newSize" placeholder="Misal: XL, 42"
-                                class="w-full text-sm px-4 py-2.5 border border-gray-200 bg-white rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none shadow-sm transition-all duration-300 ease-in-out">
-                            @error('newSize') <span
-                            class="text-xs text-red-500 mt-1 block font-medium">{{ $message }}</span> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1.5">Warna</label>
-                            <input type="text" wire:model="newColor" placeholder="Misal: Merah, Hitam"
-                                class="w-full text-sm px-4 py-2.5 border border-gray-200 bg-white rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none shadow-sm transition-all duration-300 ease-in-out">
-                            @error('newColor') <span
-                            class="text-xs text-red-500 mt-1 block font-medium">{{ $message }}</span> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1.5">SKU Baru</label>
-                            <input type="text" wire:model="newSku" placeholder="Kode Unik SKU"
-                                class="w-full text-sm px-4 py-2.5 border border-gray-200 bg-white rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none shadow-sm transition-all duration-300 ease-in-out">
-                            @error('newSku') <span class="text-xs text-red-500 mt-1 block font-medium">{{ $message }}</span>
-                            @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-900 mb-1.5 flex items-center gap-1">Barcode
-                                (Wajib Scan)</label>
-                            <input type="text" wire:model="newBarcode" wire:keydown.enter.prevent="saveNewVariant"
-                                placeholder="Arahkan Kursor & Scan"
-                                class="w-full text-sm px-4 py-2.5 border-2 border-gray-300 bg-white rounded-lg focus:border-gray-900 focus:ring-0 outline-none shadow-sm transition-all duration-300 ease-in-out">
-                            @error('newBarcode') <span
-                            class="text-xs text-red-500 mt-1 block font-medium">{{ $message }}</span> @enderror
-                            <p class="text-[10px] text-gray-500 mt-1.5 font-medium">*Tekan Enter atau Scan Barcode untuk
-                                menyimpan otomatis.</p>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex justify-end">
-                        <button type="button" wire:click="saveNewVariant"
-                            class="px-6 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-lg hover:bg-black transition-all duration-300 ease-in-out shadow-sm flex items-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            Simpan Varian
-                        </button>
-                    </div>
+                <div class="flex items-center justify-between gap-3 mt-4">
+                    <p class="text-xs text-zinc-500">Tekan Enter setelah scan barcode untuk menyimpan.</p>
+                    <button type="button" wire:click="saveNewVariant" class="btn-primary btn-sm">
+                        <span wire:loading.remove wire:target="saveNewVariant">Simpan Varian</span>
+                        <span wire:loading wire:target="saveNewVariant">Menyimpan...</span>
+                    </button>
                 </div>
             </div>
 
             <form id="stockForm" wire:submit="save">
-                <div class="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-gray-50 border-b border-gray-200">
+                <div class="rounded-2xl border border-zinc-200 overflow-x-auto">
+                    <table class="table min-w-[760px]">
+                        <thead>
                             <tr>
-                                <th class="px-5 py-4 font-bold text-gray-700">Varian (Ukuran - Warna)</th>
-                                <th class="px-5 py-4 font-bold text-gray-700 text-center">SKU</th>
-                                <th class="px-5 py-4 font-bold text-gray-700 text-center">Barcode</th>
-                                <th class="px-5 py-4 font-bold text-gray-700 text-center w-32">Stok Saat Ini</th>
-                                <th class="px-5 py-4 font-bold text-gray-900 text-center w-40">Jumlah Masuk</th>
-                                <th class="px-5 py-4 font-bold text-gray-700 text-center w-20">Aksi</th>
+                                <th>Varian</th>
+                                <th>SKU / Barcode</th>
+                                <th class="text-right">Harga Jual</th>
+                                <th class="text-center">Stok</th>
+                                <th class="text-center w-36">Jumlah Masuk</th>
+                                <th class="text-right">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($product->variants as $variant)
-                                <tr class="hover:bg-gray-50/50 transition-all duration-300 ease-in-out">
-                                    <td class="px-5 py-4 font-bold text-gray-900">{{ $variant->size }} - {{ $variant->color }}
+                        <tbody>
+                            @foreach ($product->variants->where('is_active', true) as $variant)
+                                <tr wire:key="v-{{ $variant->id }}">
+                                    <td class="font-semibold whitespace-nowrap">{{ $variant->size }} · {{ $variant->color }}</td>
+                                    <td class="font-mono text-xs text-zinc-500">{{ $variant->sku }}<br>{{ $variant->barcode ?? '-' }}</td>
+                                    <td class="text-right whitespace-nowrap">
+                                        <span class="font-semibold">{{ $rp($variant->effectiveSellPrice()) }}</span>
+                                        @if ($variant->sell_price === null)
+                                            <span class="block text-[10px] text-zinc-400">ikut produk</span>
+                                        @endif
                                     </td>
-                                    <td class="px-5 py-4 text-center text-gray-600 font-mono text-xs font-medium">
-                                        {{ $variant->sku }}
+                                    <td class="text-center"><span class="badge-light">{{ $this->getCurrentStock($variant->id) }}</span></td>
+                                    <td>
+                                        <input type="number" min="0" wire:model="addQuantities.{{ $variant->id }}" wire:keydown.enter.prevent=""
+                                            class="input !py-1.5 text-center font-semibold">
                                     </td>
-                                    <td class="px-5 py-4 text-center text-gray-600 font-mono text-xs font-medium">
-                                        {{ $variant->barcode ?? '-' }}
+                                    <td>
+                                        <div class="flex justify-end gap-1">
+                                            <button type="button" wire:click="openEditVariant({{ $variant->id }})" class="btn-icon" title="Edit Varian"><x-icon name="pencil" class="w-4 h-4" /></button>
+                                            <button type="button" x-data
+                                                @click="confirmAction(() => $wire.deleteVariant({{ $variant->id }}), @js('Hapus varian ' . $variant->size . ' - ' . $variant->color . '?'), 'Jika varian sudah punya riwayat stok/penjualan, varian akan dinonaktifkan (bukan dihapus) agar riwayatnya tetap utuh.', 'Ya, Hapus')"
+                                                class="btn-icon hover:!text-red-600 hover:!bg-red-50" title="Hapus / Nonaktifkan Varian"><x-icon name="trash" class="w-4 h-4" /></button>
+                                        </div>
                                     </td>
-                                    <td class="px-5 py-4 text-center">
-                                        <span
-                                            class="inline-flex items-center justify-center bg-gray-100 border border-gray-200 text-gray-700 font-bold px-3 py-1 rounded-md">{{ $this->getCurrentStock($variant->id) }}</span>
-                                    </td>
-                                    <td class="px-5 py-4">
-                                        <input type="number" min="0" wire:model="addQuantities.{{ $variant->id }}"
-                                            wire:keydown.enter.prevent=""
-                                            class="w-full text-center px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none bg-gray-50 focus:bg-white text-gray-900 font-bold transition-all duration-300 ease-in-out">
-                                    </td>
-                                    <td class="px-5 py-4 text-center">
-                                        <button type="button" x-data
-                                            @click="confirmDeletion(() => $wire.deleteVariant({{ $variant->id }}), 'Varian {{ $variant->size }}-{{ $variant->color }}')"
-                                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-300 ease-in-out"
-                                            title="Hapus Varian">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                                </path>
-                                            </svg>
+                                </tr>
+                            @endforeach
+
+                            @foreach ($product->variants->where('is_active', false) as $variant)
+                                <tr wire:key="vi-{{ $variant->id }}" class="text-zinc-400">
+                                    <td class="whitespace-nowrap">{{ $variant->size }} · {{ $variant->color }} <span class="badge-light ml-1">Nonaktif</span></td>
+                                    <td class="font-mono text-xs">{{ $variant->sku }}<br>{{ $variant->barcode ?? '-' }}</td>
+                                    <td class="text-right">-</td>
+                                    <td class="text-center">{{ $this->getCurrentStock($variant->id) }}</td>
+                                    <td class="text-center text-xs">-</td>
+                                    <td class="text-right">
+                                        <button type="button" wire:click="activateVariant({{ $variant->id }})" class="btn-secondary btn-sm" title="Aktifkan Kembali">
+                                            <x-icon name="refresh" class="w-3.5 h-3.5" /> Aktifkan
                                         </button>
                                     </td>
                                 </tr>
@@ -454,24 +342,55 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </table>
                 </div>
             </form>
-        @else
-            <!-- Form Input Stok Tunggal -->
-            <form id="stockForm" wire:submit="save">
-                <div class="max-w-md">
-                    <div
-                        class="flex items-center justify-between p-5 bg-gray-50 rounded-xl border border-gray-200 mb-5 shadow-sm">
-                        <span class="text-gray-700 font-bold">Stok Saat Ini</span>
-                        <span class="text-2xl font-black text-gray-900 tracking-tight">{{ $this->getCurrentStock() }}</span>
-                    </div>
+        </div>
+    @else
+        <form id="stockForm" wire:submit="save" class="bento grid-cols-1 sm:grid-cols-2 max-w-2xl">
+            <div class="tile">
+                <p class="stat-label">Stok saat ini</p>
+                <p class="stat-value">{{ $this->getCurrentStock() }}</p>
+            </div>
+            <div class="tile">
+                <label class="label">Jumlah stok masuk</label>
+                <input type="number" min="0" wire:model="addQuantities.single" wire:keydown.enter.prevent="" placeholder="0" class="input-lg">
+            </div>
+        </form>
+    @endif
 
+    @if ($editingVariantId)
+        <x-ui.modal title="Edit Varian" close="cancelEditVariant" size="lg">
+            <form wire:submit="saveVariant" class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-sm font-bold text-gray-900 mb-2">Jumlah Stok Masuk (Baru)</label>
-                        <input type="number" min="0" wire:model="addQuantities.single" wire:keydown.enter.prevent=""
-                            class="w-full px-5 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none bg-gray-50 focus:bg-white text-gray-900 font-black text-xl transition-all duration-300 ease-in-out shadow-sm"
-                            placeholder="0">
+                        <label class="label">Ukuran</label>
+                        <input type="text" wire:model="editVariant.size" class="input">
+                    </div>
+                    <div>
+                        <label class="label">Warna</label>
+                        <input type="text" wire:model="editVariant.color" class="input">
+                    </div>
+                    <div>
+                        <label class="label">SKU</label>
+                        <input type="text" wire:model="editVariant.sku" class="input font-mono">
+                    </div>
+                    <div>
+                        <label class="label">Barcode</label>
+                        <input type="text" wire:model="editVariant.barcode" class="input font-mono">
+                    </div>
+                    <div>
+                        <label class="label">Harga jual</label>
+                        <input type="number" min="0" wire:model="editVariant.sell_price" placeholder="{{ (int) $product->sell_price }} (ikut produk)" class="input">
+                    </div>
+                    <div>
+                        <label class="label">HPP</label>
+                        <input type="number" min="0" wire:model="editVariant.cost_price" placeholder="{{ (int) $product->cost_price }} (ikut produk)" class="input">
                     </div>
                 </div>
+                <p class="text-xs text-zinc-400">Kosongkan harga jual / HPP agar mengikuti harga produk utama.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" wire:click="cancelEditVariant" class="btn-secondary">Batal</button>
+                    <button type="submit" class="btn-primary">Simpan</button>
+                </div>
             </form>
-        @endif
-    </div>
+        </x-ui.modal>
+    @endif
 </div>

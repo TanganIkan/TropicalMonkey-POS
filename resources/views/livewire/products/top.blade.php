@@ -4,16 +4,21 @@ use Livewire\Volt\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\WithPagination;
-use App\Models\Transaction;
-use App\Models\TransactionItem;
 use App\Models\Outlet;
-use Illuminate\Support\Facades\DB;
+use App\Services\ReportService;
 
 new #[Layout('components.layouts.app')] class extends Component {
     use WithPagination;
 
     #[Url]
     public $outlet = '';
+
+    // Kosong = sepanjang waktu
+    #[Url]
+    public $startDate = '';
+
+    #[Url]
+    public $endDate = '';
 
     public function mount()
     {
@@ -22,22 +27,21 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
-    public function updatingOutlet()
+    public function updating($property)
     {
-        $this->resetPage();
+        if (in_array($property, ['outlet', 'startDate', 'endDate'])) {
+            $this->resetPage();
+        }
     }
 
     public function with(): array
     {
-        $trxIds = Transaction::when($this->outlet !== '', function ($query) {
-            $query->where('outlet_id', $this->outlet);
-        })->pluck('id');
-
-        $topProducts = TransactionItem::select('product_name', DB::raw('SUM(quantity) as total_sold'))
-            ->whereIn('transaction_id', $trxIds)
-            ->groupBy('product_name')
-            ->orderByDesc('total_sold')
-            ->paginate(15);
+        $topProducts = app(ReportService::class)->topProducts(
+            $this->outlet,
+            15,
+            $this->startDate ? \Carbon\Carbon::parse($this->startDate)->startOfDay() : null,
+            $this->endDate ? \Carbon\Carbon::parse($this->endDate)->endOfDay() : null,
+        );
 
         $outlets = Outlet::where('is_active', true)->orderBy('name')->get();
 
@@ -46,122 +50,52 @@ new #[Layout('components.layouts.app')] class extends Component {
 };
 ?>
 
-<div class="p-4 md:p-8 bg-gray-50/30 min-h-screen">
+<div class="space-y-4">
+    <x-ui.page-header title="Produk Terlaris" subtitle="Peringkat produk berdasarkan jumlah terjual (semua varian digabung)." back="/dashboard" back-label="Dashboard" />
 
-    <div class="mb-5">
-        <a href="/dashboard" wire:navigate
-            class="inline-flex items-center text-sm font-bold text-gray-500 hover:text-gray-900 transition-all duration-300 ease-in-out">
-            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-            </svg>
-            Kembali ke Dashboard
-        </a>
+    <div class="tile !p-3 md:!p-4">
+        <div class="grid grid-cols-2 lg:grid-cols-[1fr_1fr_16rem] gap-2 md:gap-3">
+            <div>
+                <label class="label">Dari tanggal</label>
+                <input type="date" wire:model.live="startDate" class="input">
+            </div>
+            <div>
+                <label class="label">Sampai tanggal</label>
+                <input type="date" wire:model.live="endDate" class="input">
+            </div>
+            <div class="col-span-2 lg:col-span-1">
+                <label class="label">Outlet</label>
+                <select wire:model.live="outlet" class="select">
+                    <option value="">Semua Cabang / Outlet</option>
+                    @foreach ($outlets as $o)
+                        <option value="{{ $o->id }}">{{ $o->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
     </div>
 
-    <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-5">
-        <div>
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-gray-900 text-white flex items-center justify-center shadow-sm">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
-                        </path>
-                    </svg>
+    <div class="tile-flush" wire:loading.class="opacity-60">
+        @php $max = $topProducts->max('total_sold') ?: 1; @endphp
+        <div class="divide-y divide-zinc-100">
+            @forelse ($topProducts as $index => $item)
+                @php $rank = $topProducts->firstItem() + $index; @endphp
+                <div class="flex items-center gap-4 px-4 md:px-6 py-3.5">
+                    <span class="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 {{ $rank <= 3 ? 'bg-ink text-white' : 'bg-zinc-100 text-zinc-500' }}">{{ $rank }}</span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold truncate">{{ $item->product_name }}</p>
+                        <div class="w-full bg-zinc-100 rounded-full h-1.5 mt-2">
+                            <div class="bg-ink h-1.5 rounded-full" style="width: {{ ($item->total_sold / $max) * 100 }}%"></div>
+                        </div>
+                    </div>
+                    <p class="text-sm font-bold whitespace-nowrap">{{ number_format($item->total_sold, 0, ',', '.') }} <span class="text-xs font-medium text-zinc-400">unit</span></p>
                 </div>
-                Semua Produk Terlaris
-            </h1>
-            <p class="text-sm text-gray-500 mt-2">Daftar lengkap peringkat produk dengan penjualan terbanyak.</p>
+            @empty
+                <x-ui.empty icon="star" title="Belum ada data penjualan" text="Lakukan transaksi di halaman kasir untuk melihat peringkat." />
+            @endforelse
         </div>
-
-        <!-- Filter Outlet -->
-        <div class="w-full md:w-auto relative">
-            <select wire:model.live="outlet"
-                class="w-full sm:w-64 px-4 py-2.5 pl-10 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 bg-white focus:ring-2 focus:ring-gray-900 outline-none transition-all duration-300 ease-in-out shadow-sm appearance-none cursor-pointer">
-                <option value="">Semua Cabang / Outlet</option>
-                @foreach($outlets as $o)
-                    <option value="{{ $o->id }}">{{ $o->name }}</option>
-                @endforeach
-            </select>
-            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4">
-                    </path>
-                </svg>
-            </div>
-            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                </svg>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabel dengan Transisi Loading Bawaan Livewire (Wire:Loading.class) -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-300 ease-in-out"
-        wire:loading.class="opacity-50 pointer-events-none">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm whitespace-nowrap">
-                <thead class="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                        <th class="px-6 py-5 font-bold text-gray-500 uppercase tracking-wider text-xs">Peringkat</th>
-                        <th class="px-6 py-5 font-bold text-gray-500 uppercase tracking-wider text-xs">Nama Produk</th>
-                        <th class="px-6 py-5 font-bold text-gray-500 uppercase tracking-wider text-xs text-right">Total
-                            Terjual</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @forelse($topProducts as $index => $item)
-                        @php
-                            $rank = $topProducts->firstItem() + $index;
-                            $rankBg = $rank === 1 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                                ($rank === 2 ? 'bg-gray-100 text-gray-600 border-gray-200' :
-                                    ($rank === 3 ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-gray-50 text-gray-500 border-gray-100'));
-                        @endphp
-                        <tr class="hover:bg-gray-50/80 transition-all duration-300 ease-in-out">
-                            <td class="px-6 py-4">
-                                <span
-                                    class="inline-flex items-center justify-center w-8 h-8 rounded-full border text-xs font-bold {{ $rankBg }} shadow-sm">
-                                    {{ $rank }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 font-bold text-gray-900">
-                                {{ $item->product_name }}
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <span
-                                    class="font-black text-gray-900 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
-                                    {{ number_format($item->total_sold, 0, ',', '.') }} <span
-                                        class="text-xs text-gray-500 font-bold ml-0.5">unit</span>
-                                </span>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="3" class="px-6 py-20 text-center">
-                                <div class="flex flex-col items-center justify-center text-gray-400">
-                                    <div
-                                        class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
-                                        <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                                        </svg>
-                                    </div>
-                                    <p class="font-bold text-gray-500">Belum ada data penjualan.</p>
-                                    <p class="text-sm mt-1">Lakukan transaksi di halaman kasir untuk melihat peringkat.</p>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
         @if ($topProducts->hasPages())
-            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-                {{ $topProducts->links() }}
-            </div>
+            <div class="px-5 py-4 border-t border-zinc-100">{{ $topProducts->links() }}</div>
         @endif
     </div>
 </div>

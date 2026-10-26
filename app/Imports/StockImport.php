@@ -2,10 +2,9 @@
 
 namespace App\Imports;
 
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\Stock;
 use App\Models\StockHistory;
+use App\Services\ProductService;
+use App\Services\StockService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -35,18 +34,23 @@ class StockImport implements ToCollection, WithHeadingRow
                     continue;
                 }
 
-                $product = Product::where('barcode', $barcode)->first();
-                $variant = null;
+                // Pencarian sama persis dengan scan di POS (barcode/SKU, varian dulu)
+                $found = app(ProductService::class)->findByCode($barcode);
 
-                if (!$product) {
-                    $variant = ProductVariant::where('barcode', $barcode)->first();
-                    if ($variant) {
-                        $product = $variant->product; // Ambil data induk produknya
-                    }
+                if (!$found) {
+                    $this->failedRows[] = "Barcode {$barcode} ditolak: Tidak terdaftar di sistem.";
+                    continue;
                 }
 
-                if (!$product && !$variant) {
-                    $this->failedRows[] = "Barcode {$barcode} ditolak: Tidak terdaftar di sistem.";
+                [$product, $variant] = $found;
+
+                if (!$variant && $product->has_variants) {
+                    $this->failedRows[] = "Barcode {$barcode} ditolak: Produk bervarian, gunakan barcode/SKU variannya.";
+                    continue;
+                }
+
+                if ($variant && !$variant->is_active) {
+                    $this->failedRows[] = "Barcode {$barcode} ditolak: Varian {$variant->label()} sudah dinonaktifkan.";
                     continue;
                 }
 
@@ -68,23 +72,7 @@ class StockImport implements ToCollection, WithHeadingRow
                     }
                 }
 
-                StockHistory::create([
-                    'product_id' => $productId,
-                    'product_variant_id' => $variantId,
-                    'outlet_id' => $this->outlet_id,
-                    'quantity' => $stockQty,
-                    'type' => 'in',
-                    'nota_number' => $notaNumber,
-                ]);
-
-                $stock = Stock::firstOrNew([
-                    'product_id' => $productId,
-                    'product_variant_id' => $variantId,
-                    'outlet_id' => $this->outlet_id,
-                ]);
-
-                $stock->quantity = $stock->quantity + $stockQty;
-                $stock->save();
+                app(StockService::class)->increase($productId, $variantId, $this->outlet_id, $stockQty, $notaNumber);
 
                 $this->importedCount++;
             }

@@ -6,8 +6,8 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Category;
 use App\Models\Brand;
-use App\Models\Stock;
-use App\Models\StockHistory;
+use App\Services\ProductService;
+use App\Services\StockService;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -24,6 +24,16 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
     public $importedCount = 0;
     public $failedSkus = [];
 
+    protected StockService $stocks;
+
+    protected ProductService $products;
+
+    public function __construct()
+    {
+        $this->stocks = app(StockService::class);
+        $this->products = app(ProductService::class);
+    }
+
     public function collection(Collection $rows)
     {
         $currentOutletId = session('current_outlet_id');
@@ -36,12 +46,16 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
 
             $sku = trim($row['sku']);
 
-            // 1. CEK DUPLIKASI SKU
-            $existsInProducts = Product::where('sku', $sku)->exists();
-            $existsInVariants = ProductVariant::where('sku', $sku)->exists();
+            // 1. CEK DUPLIKASI SKU & BARCODE (harus unik di semua produk & varian)
+            $barcode = trim((string) ($row['barcode'] ?? ''));
 
-            if ($existsInProducts || $existsInVariants) {
+            if ($this->products->codeTaken($sku)) {
                 $this->failedSkus[] = "{$sku} (Gagal: SKU sudah terdaftar di sistem)";
+                continue;
+            }
+
+            if ($this->products->codeTaken($barcode)) {
+                $this->failedSkus[] = "{$sku} (Gagal: Barcode '{$barcode}' sudah dipakai produk/varian lain)";
                 continue;
             }
 
@@ -93,32 +107,22 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
                     ]);
                 }
 
+                // Harga baris ini berbeda dari produk induk -> jadi harga khusus varian
+                $sellPrice = is_numeric($row['sell_price'] ?? null) && (float) $row['sell_price'] != (float) $product->sell_price ? $row['sell_price'] : null;
+                $costPrice = is_numeric($row['cost_price'] ?? null) && (float) $row['cost_price'] != (float) $product->cost_price ? $row['cost_price'] : null;
+
                 $variant = ProductVariant::create([
                     'product_id' => $product->id,
                     'sku' => $sku,
                     'size' => $row['variant_size'] ?? null,
                     'color' => $row['variant_color'] ?? null,
                     'barcode' => !empty($row['barcode']) ? trim($row['barcode']) : null,
+                    'sell_price' => $sellPrice,
+                    'cost_price' => $costPrice,
                 ]);
 
                 if ($currentOutletId) {
-                    // CATAT KE STOCK HISTORY DULU (Varian)
-                    StockHistory::create([
-                        'product_id' => $product->id,
-                        'product_variant_id' => $variant->id,
-                        'outlet_id' => $currentOutletId,
-                        'quantity' => $row['stock'] ?? 0,
-                        'type' => 'in',
-                        'nota_number' => $row['nota_number'] ?? null,
-                    ]);
-
-                    // BARU UPDATE MASTER STOCK (Varian)
-                    Stock::create([
-                        'product_id' => $product->id,
-                        'outlet_id' => $currentOutletId,
-                        'product_variant_id' => $variant->id,
-                        'quantity' => $row['stock'] ?? 0
-                    ]);
+                    $this->stocks->increase($product->id, $variant->id, $currentOutletId, (int) ($row['stock'] ?? 0), $row['nota_number'] ?? null, 'initial');
                 }
 
                 $this->importedCount++;
@@ -144,23 +148,7 @@ class ProductsImport implements ToCollection, WithHeadingRow, WithValidation, Sk
                 ]);
 
                 if ($currentOutletId) {
-                    // CATAT KE STOCK HISTORY DULU (Tunggal)
-                    StockHistory::create([
-                        'product_id' => $product->id,
-                        'product_variant_id' => null,
-                        'outlet_id' => $currentOutletId,
-                        'quantity' => $row['stock'] ?? 0,
-                        'type' => 'in',
-                        'nota_number' => $row['nota_number'] ?? null,
-                    ]);
-
-                    // BARU UPDATE MASTER STOCK (Tunggal)
-                    Stock::create([
-                        'product_id' => $product->id,
-                        'outlet_id' => $currentOutletId,
-                        'product_variant_id' => null,
-                        'quantity' => $row['stock'] ?? 0
-                    ]);
+                    $this->stocks->increase($product->id, null, $currentOutletId, (int) ($row['stock'] ?? 0), $row['nota_number'] ?? null, 'initial');
                 }
 
                 $this->importedCount++;

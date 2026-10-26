@@ -2,10 +2,9 @@
 
 namespace App\Imports;
 
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\Stock;
-use App\Models\StockHistory;
+use App\Exceptions\InsufficientStockException;
+use App\Services\ProductService;
+use App\Services\StockService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -34,58 +33,31 @@ class ReturImport implements ToCollection, WithHeadingRow
                     continue;
                 }
 
-                // 1. CARI BARANG
-                $product = Product::where('barcode', $barcode)->first();
-                $variant = null;
+                // 1. CARI BARANG (sama persis dengan scan di POS)
+                $found = app(ProductService::class)->findByCode($barcode);
 
-                if (!$product) {
-                    $variant = ProductVariant::where('barcode', $barcode)->first();
-                    if ($variant) {
-                        $product = $variant->product;
-                    }
+                if (!$found) {
+                    $this->failedRows[] = "Barcode {$barcode} ditolak: Tidak terdaftar di sistem.";
+                    continue;
                 }
 
-                if (!$product && !$variant) {
-                    $this->failedRows[] = "Barcode {$barcode} ditolak: Tidak terdaftar di sistem.";
+                [$product, $variant] = $found;
+
+                if (!$variant && $product->has_variants) {
+                    $this->failedRows[] = "Barcode {$barcode} ditolak: Produk bervarian, gunakan barcode/SKU variannya.";
                     continue;
                 }
 
                 $productId = $product->id;
                 $variantId = $variant ? $variant->id : null;
 
-                // 2. CEK STOK DI OUTLET
-                $stockRecord = Stock::where('outlet_id', $this->outlet_id)
-                    ->where('product_id', $productId);
-
-                if ($variantId) {
-                    $stockRecord->where('product_variant_id', $variantId);
-                } else {
-                    $stockRecord->where(function ($q) {
-                        $q->whereNull('product_variant_id')->orWhere('product_variant_id', 0);
-                    });
-                }
-
-                $stock = $stockRecord->first();
-
-                // 3. VALIDASI STOK MINUS
-                if (!$stock || $stock->quantity < $qtyRetur) {
-                    $sisa = $stock ? $stock->quantity : 0;
-                    $this->failedRows[] = "Barcode {$barcode} ditolak: Stok tidak cukup (Sisa: {$sisa}, Mau ditarik: {$qtyRetur}).";
+                // 2. POTONG STOK & CATAT HISTORI (ditolak bila stok tidak cukup)
+                try {
+                    app(StockService::class)->decrease($productId, $variantId, $this->outlet_id, $qtyRetur, null, "Barcode {$barcode}", 'return', $alasan);
+                } catch (InsufficientStockException $e) {
+                    $this->failedRows[] = "Barcode {$barcode} ditolak: Stok tidak cukup (Sisa: {$e->available}, Mau ditarik: {$qtyRetur}).";
                     continue;
                 }
-
-                // 4. POTONG STOK & CATAT HISTORI
-                $stock->quantity -= $qtyRetur;
-                $stock->save();
-
-                StockHistory::create([
-                    'product_id' => $productId,
-                    'product_variant_id' => $variantId,
-                    'outlet_id' => $this->outlet_id,
-                    'quantity' => $qtyRetur,
-                    'type' => 'out',
-                    'nota_number' => $alasan,
-                ]);
 
                 $this->importedCount++;
             }
