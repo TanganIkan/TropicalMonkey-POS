@@ -221,6 +221,7 @@ new #[Layout('components.layouts.app')]
                 buildChart(labels, data) {
                     this.labels = labels;
                     this.data = data;
+                    if (!this.$refs.canvas) return;
                     if (this.isBuilding) return;
                     this.isBuilding = true;
                     if (this.chart) { this.chart.destroy(); this.chart = null; }
@@ -275,9 +276,8 @@ new #[Layout('components.layouts.app')]
                     Livewire.on('sales-trend-updated', (data) => {
                         this.buildChart(data.chart.labels, data.chart.data);
                     });
-                    window.addEventListener('theme-changed', () => this.buildChart(this.labels, this.data));
                 }
-            }">
+            }" x-on:theme-changed.window="buildChart(labels, data)">
                 <canvas x-ref="canvas" id="salesChart" class="w-full h-full"></canvas>
             </div>
         </div>

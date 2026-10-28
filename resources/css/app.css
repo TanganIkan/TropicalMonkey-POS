@@ -324,8 +324,14 @@
 .notyf__toast--dismissible .notyf__wrapper {
     padding-right: 2.75rem !important;
 }
+/* Bawaan Notyf memakai margin-right: -15px (mengimbangi padding toast bawaan yang sudah
+   dihapus di atas), sehingga tombol tutup keluar dari toast. Dijadikan tombol bulat di pojok. */
 .notyf__dismiss {
-    right: 0.35rem !important;
+    top: 0.75rem !important;
+    right: 0.75rem !important;
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    margin-right: 0 !important;
 }
 .notyf__message {
     font-size: 0.85rem;
@@ -341,10 +347,26 @@
 }
 .notyf__dismiss-btn {
     background: transparent !important;
+    border-radius: 9999px;
     opacity: 0.6 !important;
 }
 .notyf__dismiss-btn:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
     opacity: 1 !important;
+}
+.toast-info .notyf__dismiss-btn:hover,
+.dark .toast-success .notyf__dismiss-btn:hover {
+    background: rgba(10, 10, 10, 0.08) !important;
+}
+
+/* HP: bawaan Notyf membuat toast menempel ke tepi layar */
+@media (max-width: 480px) {
+    .notyf {
+        padding: 0.75rem !important;
+    }
+    .notyf__dismiss {
+        width: 1.75rem !important;
+    }
 }
 .toast-success { background: #0a0a0a !important; color: #fff !important; }
 .toast-error { background: #b91c1c !important; color: #fff !important; }

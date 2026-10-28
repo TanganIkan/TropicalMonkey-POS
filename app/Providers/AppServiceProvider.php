@@ -22,7 +22,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Tanggal & durasi tampil dalam Bahasa Indonesia (mis. "Okt", "10 menit")
+        // Aplikasi berbahasa Indonesia: pesan validasi, pagination, tanggal & durasi (mis. "Okt", "10 menit")
+        app()->setLocale('id');
         Carbon::setLocale('id');
 
         // Jalankan juga pada setiap aksi Livewire (wire:click, dll), bukan hanya saat halaman dibuka

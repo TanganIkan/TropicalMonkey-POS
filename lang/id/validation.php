@@ -1,0 +1,70 @@
+<?php
+
+/*
+ * Pesan validasi Bahasa Indonesia (dipakai bila komponen tidak memberi pesan kustom).
+ * Aturan yang tidak ada di sini memakai pesan bawaan (Inggris).
+ */
+return [
+    'accepted' => ':Attribute harus disetujui.',
+    'after_or_equal' => ':Attribute harus tanggal setelah atau sama dengan :date.',
+    'array' => ':Attribute harus berupa daftar.',
+    'boolean' => ':Attribute harus bernilai ya atau tidak.',
+    'confirmed' => 'Konfirmasi :attribute tidak cocok.',
+    'date' => ':Attribute bukan tanggal yang valid.',
+    'email' => ':Attribute harus berupa alamat email yang valid.',
+    'exists' => ':Attribute yang dipilih tidak valid.',
+    'file' => ':Attribute harus berupa file.',
+    'image' => ':Attribute harus berupa gambar.',
+    'in' => ':Attribute yang dipilih tidak valid.',
+    'integer' => ':Attribute harus berupa bilangan bulat.',
+    'max' => [
+        'array' => ':Attribute maksimal berisi :max item.',
+        'file' => ':Attribute maksimal :max KB.',
+        'numeric' => ':Attribute maksimal :max.',
+        'string' => ':Attribute maksimal :max karakter.',
+    ],
+    'mimes' => ':Attribute harus berupa file bertipe: :values.',
+    'min' => [
+        'array' => ':Attribute minimal berisi :min item.',
+        'file' => ':Attribute minimal :min KB.',
+        'numeric' => ':Attribute minimal :min.',
+        'string' => ':Attribute minimal :min karakter.',
+    ],
+    'numeric' => ':Attribute harus berupa angka.',
+    'regex' => 'Format :attribute tidak valid.',
+    'required' => ':Attribute wajib diisi.',
+    'string' => ':Attribute harus berupa teks.',
+    'unique' => ':Attribute sudah dipakai.',
+    'uploaded' => ':Attribute gagal diunggah.',
+
+    // Nama field yang tampil di pesan
+    'attributes' => [
+        'name' => 'nama',
+        'username' => 'username',
+        'email' => 'email',
+        'password' => 'kata sandi',
+        'current_password' => 'password saat ini',
+        'new_password' => 'password baru',
+        'role' => 'peran',
+        'category_id' => 'kategori',
+        'brand_id' => 'brand',
+        'sell_price' => 'harga jual',
+        'cost_price' => 'harga modal',
+        'photo' => 'foto',
+        'file' => 'file',
+        'returFile' => 'file retur',
+        'categoryName' => 'nama kategori',
+        'brandName' => 'nama brand',
+        'brandDescription' => 'deskripsi brand',
+        'lowStockThreshold' => 'batas stok menipis',
+        'receiptFooter' => 'footer struk',
+        'logoPrimary' => 'logo 1',
+        'logoSecondary' => 'logo 2',
+        'newMethodName' => 'nama metode',
+        'customStart' => 'tanggal mulai',
+        'customEnd' => 'tanggal akhir',
+        'selected_outlet_id' => 'outlet',
+        'address' => 'alamat',
+        'phone' => 'telepon',
+    ],
+];

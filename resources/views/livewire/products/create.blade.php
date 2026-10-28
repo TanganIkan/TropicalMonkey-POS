@@ -13,7 +13,7 @@ use App\Services\ProductService;
 new #[Layout('components.layouts.app')] class extends Component {
     use WithFileUploads;
 
-    #[Rule('required|min:3', message: 'Nama produk minimal 3 karakter.')]
+    #[Rule('required|min:3', message: ['name.required' => 'Nama produk wajib diisi.', 'name.min' => 'Nama produk minimal 3 karakter.'])]
     public $name = '';
 
     #[Rule('required', message: 'Kategori wajib dipilih.')]
@@ -24,7 +24,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public $cost_price = null;
 
-    #[Rule('required|numeric|min:0', message: 'Harga jual wajib diisi dengan angka.')]
+    #[Rule('required|numeric|min:0', message: ['sell_price.required' => 'Harga jual wajib diisi.', 'sell_price.numeric' => 'Harga jual harus berupa angka.', 'sell_price.min' => 'Harga jual tidak boleh minus.'])]
     public $sell_price = null;
 
     public $sku = '';
@@ -32,7 +32,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $hasVariants = false;
     public $is_active = 1;
 
-    #[Rule('nullable|image|max:5120', message: 'Foto harus berupa gambar (JPG/PNG) maksimal 5MB.')]
+    #[Rule('nullable|image|max:5120', message: ['photo.image' => 'Foto harus berupa gambar (JPG/PNG).', 'photo.max' => 'Ukuran foto maksimal 5MB.'])]
     public $photo = null;
 
     // ==== Varian ====

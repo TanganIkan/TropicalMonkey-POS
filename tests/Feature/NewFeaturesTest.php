@@ -597,4 +597,24 @@ class NewFeaturesTest extends TestCase
         $this->assertEquals(153000, $trx->total);
         $this->assertSame(3, $this->stockOf($product, $outlet));
     }
+
+    // Pesan validasi per-field berbahasa Indonesia (bukan pesan field lain / bawaan Inggris)
+    public function test_product_form_validation_messages_are_field_specific_and_indonesian(): void
+    {
+        $outlet = $this->makeOutlet();
+        $this->loginAt(User::factory()->owner()->create(), $outlet);
+
+        Volt::test('products.create')
+            ->call('save')
+            ->assertHasErrors(['name', 'category_id', 'sell_price'])
+            ->assertSee('Nama produk wajib diisi.')
+            ->assertSee('Harga jual wajib diisi.')
+            ->assertSee('Kategori wajib dipilih.')
+            ->assertDontSee('field is required');
+
+        Volt::test('profile.index')
+            ->set('name', '')
+            ->call('updateProfile')
+            ->assertSee('Nama wajib diisi.');
+    }
 }
