@@ -403,3 +403,38 @@
         background: #fff !important;
     }
 }
+
+/* Struk yang dikirim langsung ke printer thermal (resources/js/printer.js).
+   Disamakan dengan gaya @media print di halaman struk (livewire/pos/receipt.blade.php). */
+.receipt-raster {
+    width: 80mm !important;
+    padding: 4mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+}
+.receipt-raster,
+.receipt-raster * {
+    color: #000 !important;
+    font-size: 16px !important;
+}
+.receipt-raster h2 {
+    font-size: 24px !important;
+}
+.receipt-raster .text-xs,
+.receipt-raster .text-sm {
+    font-size: 15px !important;
+}
+.receipt-raster .text-xl,
+.receipt-raster .text-lg {
+    font-size: 20px !important;
+}
+.receipt-raster .border-dashed {
+    border-bottom: 2px dashed #000 !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+}
+.receipt-raster .border-b:not(.border-dashed) {
+    border-bottom: 2px solid #000 !important;
+}

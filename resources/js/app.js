@@ -1,8 +1,10 @@
 import { Notyf } from "notyf";
 import "notyf/notyf.min.css";
 import Chart from "chart.js/auto";
+import printer from "./printer";
 
 window.Chart = Chart;
+window.posPrinter = printer;
 
 // ===== Tema terang / gelap =====
 // Pilihan disimpan di localStorage: 'light' | 'dark' | 'system' (ikuti pengaturan perangkat)

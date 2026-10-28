@@ -27,7 +27,37 @@ new #[Layout('components.layouts.app')]
 };
 ?>
 
-<div class="space-y-4" x-data x-init="@if ($autoPrint) setTimeout(() => window.print(), 500) @endif">
+{{-- Printer thermal terhubung (USB/Bluetooth, resources/js/printer.js) dicetak langsung; jika tidak, lewat dialog print browser --}}
+<div class="space-y-4" x-data="{
+    printer: window.posPrinter?.state() ?? {},
+    busy: false,
+    async print() {
+        if (window.posPrinter && await window.posPrinter.reconnect()) {
+            this.busy = true;
+            try {
+                await window.posPrinter.printElement(document.getElementById('print-area'));
+                return;
+            } catch (e) {
+                window.notify({ title: 'Gagal mencetak langsung', text: e.message, icon: 'warning' });
+            } finally {
+                this.busy = false;
+            }
+        }
+        window.print();
+    },
+    async run(action, success) {
+        this.busy = true;
+        try {
+            await window.posPrinter[action]();
+            if (success) window.notify({ title: success, icon: 'success' });
+        } catch (e) {
+            // NotFoundError = pengguna menutup jendela pilih perangkat
+            if (e.name !== 'NotFoundError') window.notify({ title: 'Printer gagal', text: e.message, icon: 'error' });
+        } finally {
+            this.busy = false;
+        }
+    },
+}" x-init="@if ($autoPrint) setTimeout(() => print(), 500) @endif" x-on:printer-changed.window="printer = $event.detail">
     <div class="bento grid-cols-1 lg:grid-cols-5 items-start max-w-5xl mx-auto">
         <!-- Info & aksi (tidak ikut tercetak) -->
         <div class="lg:col-span-2 space-y-3 md:space-y-4 print:hidden">
@@ -52,12 +82,45 @@ new #[Layout('components.layouts.app')]
             </div>
 
             <div class="tile !p-3 grid grid-cols-2 gap-2">
-                <button onclick="window.print()" class="btn-secondary">
+                <button type="button" @click="print()" :disabled="busy" class="btn-secondary">
                     <x-icon name="printer" class="w-4 h-4" /> Reprint Receipt
                 </button>
                 <a href="/pos" wire:navigate class="btn-primary">
                     <x-icon name="plus" class="w-4 h-4" /> New Transaction
                 </a>
+            </div>
+
+            <!-- Printer thermal (koneksi tersimpan di perangkat ini) -->
+            <div class="tile" x-show="printer.usb || printer.bluetooth" x-cloak>
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <h2 class="tile-title">Printer Thermal</h2>
+                        <p class="tile-sub truncate" x-text="printer.connected ? printer.name + (printer.type === 'usb' ? ' · USB' : ' · Bluetooth') : 'Belum terhubung'"></p>
+                    </div>
+                    <span :class="printer.connected ? 'badge-success' : 'badge-light'" x-text="printer.connected ? 'Terhubung' : 'Offline'"></span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-4" x-show="!printer.connected">
+                    <button type="button" x-show="printer.usb" @click="run('connectUsb', 'Printer USB terhubung')" :disabled="busy" class="btn-primary btn-sm">Hubungkan USB</button>
+                    <button type="button" x-show="printer.bluetooth" @click="run('connectBluetooth', 'Printer Bluetooth terhubung')" :disabled="busy" class="btn-secondary btn-sm">Hubungkan Bluetooth</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-4" x-show="printer.connected">
+                    <button type="button" @click="run('testPrint')" :disabled="busy" class="btn-primary btn-sm">Tes Print</button>
+                    <button type="button" @click="run('disconnect')" :disabled="busy" class="btn-secondary btn-sm">Putuskan</button>
+                </div>
+
+                <div class="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-zinc-100">
+                    <span class="text-xs font-medium text-zinc-500">Lebar kertas</span>
+                    <div class="flex gap-1.5">
+                        @foreach (['58', '80'] as $mm)
+                            <button type="button" @click="window.posPrinter.paper = '{{ $mm }}'" :class="printer.paper === '{{ $mm }}' ? 'chip-active' : 'chip'" class="!py-1 !px-3 !text-xs">{{ $mm }} mm</button>
+                        @endforeach
+                    </div>
+                </div>
+                <p class="text-[11px] text-zinc-400 mt-3">Jika printer tidak terhubung, struk dicetak lewat dialog print browser.</p>
+            </div>
+            <div class="tile-muted text-xs text-zinc-500" x-show="!(printer.usb || printer.bluetooth)" x-cloak>
+                Print langsung ke printer thermal hanya tersedia di Google Chrome (Android/komputer).
             </div>
         </div>
 
