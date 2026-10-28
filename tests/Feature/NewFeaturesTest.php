@@ -307,6 +307,30 @@ class NewFeaturesTest extends TestCase
         $this->assertTrue($trx->fresh()->isVoid());
     }
 
+    public function test_staff_can_view_transactions_and_reports_and_void(): void
+    {
+        $outlet = $this->makeOutlet();
+        $staff = User::factory()->create();
+        $product = $this->makeProduct();
+        $this->setStock($product, $outlet, 5);
+        $trx = $this->checkout(["{$product->id}-single" => $this->item($product->name, 1)], $outlet->id, $staff->id);
+
+        $this->loginAt($staff, $outlet)->get('/transactions')->assertOk()->assertSee($trx->order_id);
+        foreach (['/reports', '/reports?tab=cashiers', '/reports?tab=inventory'] as $page) {
+            $this->loginAt($staff, $outlet)->get($page)->assertOk();
+        }
+
+        Volt::test('transactions.index')
+            ->call('openVoid', $trx->id)
+            ->set('voidReason', 'Pelanggan batal')
+            ->call('confirmVoid');
+
+        $trx->refresh();
+        $this->assertTrue($trx->isVoid());
+        $this->assertSame($staff->id, $trx->voided_by);
+        $this->assertSame(5, $this->stockOf($product, $outlet));
+    }
+
     // ===== Harga per varian (C1) & edit varian (C3) =====
 
     public function test_variant_price_overrides_product_price(): void

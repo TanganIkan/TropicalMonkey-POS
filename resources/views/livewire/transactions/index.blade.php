@@ -96,7 +96,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 @php $rp = fn($n) => 'Rp ' . number_format($n, 0, ',', '.'); @endphp
 
 <div class="space-y-4">
-    <x-ui.page-header title="Transaksi" subtitle="Daftar lengkap transaksi penjualan. Void hanya bisa dilakukan owner." />
+    <x-ui.page-header title="Transaksi" subtitle="Daftar lengkap transaksi penjualan. Setiap void tercatat beserta alasan dan siapa yang melakukannya." />
 
     <div class="tile !p-3 md:!p-4">
         <div class="grid grid-cols-2 lg:grid-cols-[1fr_11rem_11rem_10rem] gap-2 md:gap-3">

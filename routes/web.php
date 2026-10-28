@@ -28,6 +28,9 @@ Route::middleware(['auth', 'pos.session'])->group(function () {
 
     Volt::route('/categories-brands', 'categories-brands.index')->name('categories-brands.index');
 
+    Volt::route('/transactions', 'transactions.index')->name('transactions.index');
+    Volt::route('/reports', 'reports.index')->name('reports.index');
+
     Volt::route('/profile', 'profile.index')->name('profile');
 
     // Khusus owner
@@ -35,8 +38,6 @@ Route::middleware(['auth', 'pos.session'])->group(function () {
         Volt::route('/dashboard', 'dashboard.index')->name('dashboard');
         Volt::route('/staff', 'staff.index')->name('staff.index');
         Volt::route('/products/top', 'products.top')->name('products.top');
-        Volt::route('/transactions', 'transactions.index')->name('transactions.index');
-        Volt::route('/reports', 'reports.index')->name('reports.index');
         Volt::route('/monitoring', 'monitoring.index')->name('monitoring.index');
         Volt::route('/outlets', 'outlets.index')->name('outlets.index');
         Volt::route('/settings', 'settings.index')->name('settings.index');

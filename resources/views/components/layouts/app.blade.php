@@ -30,10 +30,10 @@
             ['/products', 'Produk', 'box', 'products*', false],
             ['/stocks/history', 'Stok', 'clipboard', 'stocks*', false],
             ['/categories-brands', 'Kategori & Brand', 'tag', 'categories-brands*', false],
+            ['/transactions', 'Transaksi', 'receipt', 'transactions*', false],
+            ['/reports', 'Laporan', 'chart', 'reports*', false],
         ],
         'Owner' => [
-            ['/transactions', 'Transaksi', 'receipt', 'transactions*', true],
-            ['/reports', 'Laporan', 'chart', 'reports*', true],
             ['/monitoring', 'Monitoring', 'eye', 'monitoring*', true],
             ['/staff', 'Karyawan', 'users', 'staff*', true],
             ['/outlets', 'Outlet', 'store', 'outlets*', true],

@@ -89,7 +89,7 @@ class PagesRenderTest extends TestCase
         $outlet = $this->makeOutlet();
         $staff = User::factory()->create();
 
-        foreach (['/dashboard', '/staff', '/transactions', '/products/top', '/reports', '/monitoring', '/outlets', '/settings'] as $page) {
+        foreach (['/dashboard', '/staff', '/products/top', '/monitoring', '/outlets', '/settings'] as $page) {
             $this->loginAt($staff, $outlet)->get($page)->assertForbidden();
         }
     }
