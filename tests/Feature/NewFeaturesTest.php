@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Exceptions\InsufficientStockException;
 use App\Exceptions\PosException;
 use App\Models\ActivityLog;
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
 use App\Models\StockHistory;
@@ -485,6 +487,78 @@ class NewFeaturesTest extends TestCase
         $this->assertCount(1, $low);
         $this->assertSame(2, (int) $low->first()->quantity);
         $this->assertCount(0, $reports->lowStock($outlet->id, 1));
+    }
+
+    public function test_low_stock_filter_shows_which_variant_is_low(): void
+    {
+        $outlet = $this->makeOutlet();
+        $owner = User::factory()->owner()->create();
+        $product = $this->makeProduct(['name' => 'Kaos Bervarian', 'sku' => null, 'has_variants' => true]);
+        $this->setStock($product, $outlet, 1, $this->makeVariant($product, 'L', 'Hitam'));
+        $this->setStock($product, $outlet, 12, $this->makeVariant($product, 'M', 'Putih'));
+        $this->loginAt($owner, $outlet);
+
+        // Total 13, tapi varian L tinggal 1 (batas bawaan 5)
+        Volt::test('products.index')
+            ->set('lowStock', true)
+            ->assertSee('Kaos Bervarian')
+            ->assertSee('Menipis: L - Hitam: 1')
+            ->assertDontSee('M - Putih: 12');
+    }
+
+    public function test_categories_and_brands_can_be_added_renamed_searched_and_counted(): void
+    {
+        $outlet = $this->makeOutlet();
+        $owner = User::factory()->owner()->create();
+        $brand = Brand::create(['name' => 'Tropisoul']);
+        $product = $this->makeProduct(['brand_id' => $brand->id]);
+        $this->setStock($product, $outlet, 7);
+        $this->loginAt($owner, $outlet);
+
+        $page = Volt::test('categories-brands.index')
+            ->assertSee('7 stok')
+            ->assertSee('/products?brand=' . $brand->id);
+
+        // Tambah
+        $page->call('startCreate', 'brand')->set('formName', 'Erigo')->set('formDescription', 'Streetwear')->call('saveForm')->assertHasNoErrors();
+        $this->assertDatabaseHas('brands', ['name' => 'Erigo', 'description' => 'Streetwear']);
+
+        // Nama ganda ditolak, nama sendiri boleh disimpan ulang
+        $page->call('startCreate', 'category')->set('formName', 'Kaos')->call('saveForm')->assertHasErrors('formName');
+        $kaos = Category::where('name', 'Kaos')->first();
+        $page->call('startEdit', 'category', $kaos->id)->set('formName', 'Kaos')->call('saveForm')->assertHasNoErrors();
+
+        // Ganti nama
+        $page->call('startEdit', 'brand', $brand->id)->set('formName', 'Tropisoul Bali')->call('saveForm')->assertHasNoErrors();
+        $this->assertSame('Tropisoul Bali', $brand->fresh()->name);
+
+        // Cari
+        $page->set('brandSearch', 'erig')->assertSee('Erigo')->assertDontSee('Tropisoul Bali');
+
+        // Tautan ke daftar produk terfilter
+        $this->makeProduct(['name' => 'Topi Lain Brand']);
+        $this->loginAt($owner, $outlet)->get('/products?brand=' . $brand->id)
+            ->assertOk()->assertSee($product->name)->assertDontSee('Topi Lain Brand');
+    }
+
+    public function test_long_category_list_is_collapsed_until_expanded_or_searched(): void
+    {
+        $outlet = $this->makeOutlet();
+        $this->loginAt(User::factory()->owner()->create(), $outlet);
+        foreach (range(1, 10) as $i) {
+            Category::create(['name' => sprintf('Kategori %02d', $i)]);
+        }
+
+        Volt::test('categories-brands.index')
+            ->assertSee('Kategori 08')
+            ->assertDontSee('Kategori 10')
+            ->assertSee('Tampilkan semua (2 lainnya)')
+            ->set('categorySearch', 'Kategori 10')
+            ->assertSee('Kategori 10')
+            ->set('categorySearch', '')
+            ->set('expanded.category', true)
+            ->assertSee('Kategori 10')
+            ->assertSee('Tampilkan lebih sedikit');
     }
 
     // ===== Pengaturan & outlet =====

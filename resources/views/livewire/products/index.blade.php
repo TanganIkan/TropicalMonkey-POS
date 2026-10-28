@@ -19,7 +19,10 @@ new #[Layout('components.layouts.app')]
     use WithFileUploads;
 
     public $search = '';
+    // ?category= / ?brand= dari halaman Kategori & Brand
+    #[\Livewire\Attributes\Url(as: 'category')]
     public $selectedCategory = '';
+    #[\Livewire\Attributes\Url(as: 'brand')]
     public $selectedBrand = '';
 
     // ?lowStock=1 dari dashboard: hanya produk yang stoknya menipis di outlet aktif
@@ -145,16 +148,18 @@ new #[Layout('components.layouts.app')]
             $query->where('brand_id', $this->selectedBrand);
         }
 
+        // Stok menipis dihitung per varian, sedangkan kolom stok menampilkan total semua varian.
+        // Varian yang menipis ditampilkan terpisah agar jelas kenapa produknya ditandai.
+        $lowRows = app(\App\Services\ReportService::class)
+            ->lowStock((int) $currentOutletId, \App\Models\Setting::lowStockThreshold());
+
         if ($this->lowStock) {
-            $lowIds = app(\App\Services\ReportService::class)
-                ->lowStock((int) $currentOutletId, \App\Models\Setting::lowStockThreshold())
-                ->pluck('product_id')
-                ->unique();
-            $query->whereIn('id', $lowIds);
+            $query->whereIn('id', $lowRows->pluck('product_id')->unique());
         }
 
         return [
             'products' => $query->latest()->paginate(10),
+            'lowVariants' => $lowRows->whereNotNull('product_variant_id')->groupBy('product_id'),
             'categories' => Category::orderBy('name')->get(),
             'brands' => Brand::orderBy('name')->get(),
         ];
@@ -191,7 +196,9 @@ new #[Layout('components.layouts.app')]
 
 @php
     $threshold = \App\Models\Setting::lowStockThreshold();
-    $stockBadge = fn($qty) => $qty <= 0 ? 'badge-danger' : ($qty <= $threshold ? 'badge-warning' : 'badge-dark');
+    $stockBadge = fn($qty, $lowList = null) => $qty <= 0 ? 'badge-danger' : ($qty <= $threshold || $lowList ? 'badge-warning' : 'badge-dark');
+    $lowText = fn($lowList) => $lowList->take(3)->map(fn($r) => implode(' - ', array_filter([$r->size, $r->color])) . ': ' . $r->quantity)->implode(', ')
+        . ($lowList->count() > 3 ? ' +' . ($lowList->count() - 3) . ' lainnya' : '');
 @endphp
 
 <div class="space-y-4">
@@ -245,7 +252,10 @@ new #[Layout('components.layouts.app')]
                 </thead>
                 <tbody>
                     @forelse ($products as $product)
-                        @php $stockQty = $product->stocks->sum('quantity') ?? 0; @endphp
+                        @php
+                            $stockQty = $product->stocks->sum('quantity') ?? 0;
+                            $lowList = $lowVariants->get($product->id);
+                        @endphp
                         <tr wire:key="p-{{ $product->id }}">
                             <td>
                                 <div class="flex items-center gap-3">
@@ -271,7 +281,12 @@ new #[Layout('components.layouts.app')]
                                 </div>
                             </td>
                             <td class="text-right font-semibold whitespace-nowrap">Rp {{ number_format($product->sell_price, 0, ',', '.') }}</td>
-                            <td class="text-center"><span class="{{ $stockBadge($stockQty) }}">{{ $stockQty }}</span></td>
+                            <td class="text-center">
+                                <span class="{{ $stockBadge($stockQty, $lowList) }}">{{ $stockQty }}</span>
+                                @if ($lowList)
+                                    <p class="text-[11px] text-amber-700 mt-1 max-w-[11rem] mx-auto leading-snug">Menipis: {{ $lowText($lowList) }}</p>
+                                @endif
+                            </td>
                             <td class="text-center">
                                 <span class="{{ $product->is_active ? 'badge-success' : 'badge-light' }}">{{ $product->is_active ? 'Aktif' : 'Nonaktif' }}</span>
                             </td>
@@ -298,7 +313,10 @@ new #[Layout('components.layouts.app')]
     <!-- HP & tablet: kartu -->
     <div class="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
         @forelse ($products as $product)
-            @php $stockQty = $product->stocks->sum('quantity') ?? 0; @endphp
+            @php
+                $stockQty = $product->stocks->sum('quantity') ?? 0;
+                $lowList = $lowVariants->get($product->id);
+            @endphp
             <div class="tile !p-4" wire:key="pm-{{ $product->id }}">
                 <div class="flex gap-3">
                     @if ($product->image)
@@ -319,7 +337,10 @@ new #[Layout('components.layouts.app')]
                 <div class="flex items-center justify-between mt-3 pt-3 border-t border-zinc-100">
                     <div>
                         <p class="font-bold">Rp {{ number_format($product->sell_price, 0, ',', '.') }}</p>
-                        <p class="text-xs text-zinc-500">Stok <span class="{{ $stockBadge($stockQty) }} ml-1">{{ $stockQty }}</span></p>
+                        <p class="text-xs text-zinc-500">Stok <span class="{{ $stockBadge($stockQty, $lowList) }} ml-1">{{ $stockQty }}</span></p>
+                        @if ($lowList)
+                            <p class="text-[11px] text-amber-700 mt-1 leading-snug">Menipis: {{ $lowText($lowList) }}</p>
+                        @endif
                     </div>
                     <div class="flex gap-1">
                         <a href="/products/{{ $product->id }}/add-stock" wire:navigate class="btn-icon" title="Stok"><x-icon name="layers" class="w-4 h-4" /></a>
