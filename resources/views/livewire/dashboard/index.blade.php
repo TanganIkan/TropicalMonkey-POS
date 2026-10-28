@@ -41,7 +41,7 @@ new #[Layout('components.layouts.app')]
             [
                 'customStart.required' => 'Tanggal mulai wajib dipilih.',
                 'customEnd.required' => 'Tanggal akhir wajib dipilih.',
-                'customEnd.after_or_equal' => 'Tanggal akhir tidak boleh lebih kecil dari tanggal mulai.',
+                'customEnd.after_or_equal' => 'Tidak boleh sebelum tanggal mulai.',
             ]
         );
 
@@ -149,21 +149,26 @@ new #[Layout('components.layouts.app')]
     </x-ui.page-header>
 
     <!-- Periode -->
-    <div class="flex flex-col lg:flex-row lg:items-center gap-2">
+    <div class="flex flex-col lg:flex-row lg:items-center gap-2 {{ $errors->hasAny(['customStart', 'customEnd']) ? 'sm:pb-6' : '' }}">
         <div class="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1 lg:pb-0">
             @foreach ($periods as $key => $label)
                 <button wire:click="setFilter('{{ $key }}')" class="{{ $salesFilter === $key ? 'chip-active' : 'chip' }} whitespace-nowrap">{{ $label }}</button>
             @endforeach
         </div>
-        <div class="grid grid-cols-2 sm:flex sm:items-center gap-2 lg:ml-auto">
-            <input type="date" wire:model="customStart" class="input sm:!w-auto !py-2 {{ $salesFilter === 'custom' ? '!border-ink' : '' }}" title="Dari tanggal">
-            <span class="hidden sm:inline text-zinc-300">—</span>
-            <input type="date" wire:model="customEnd" class="input sm:!w-auto !py-2 {{ $salesFilter === 'custom' ? '!border-ink' : '' }}" title="Sampai tanggal">
-            <button wire:click="applyCustomRange" class="{{ $salesFilter === 'custom' ? 'btn-primary' : 'btn-secondary' }} !py-2 col-span-2">Terapkan</button>
+        <!-- Pesan error di bawah kolomnya masing-masing; di layar lebar melayang agar baris tidak ikut bergeser -->
+        <div class="lg:ml-auto">
+            <div class="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                @foreach (['customStart' => 'Dari tanggal', 'customEnd' => 'Sampai tanggal'] as $field => $title)
+                    @if ($loop->last) <span class="hidden sm:inline text-zinc-300">—</span> @endif
+                    <div class="relative">
+                        <input type="date" wire:model="{{ $field }}" class="input sm:!w-auto !py-2 {{ $errors->has($field) ? '!border-red-500' : ($salesFilter === 'custom' ? '!border-ink' : '') }}" title="{{ $title }}">
+                        @error($field) <span class="field-error px-1 sm:absolute sm:left-0 sm:top-full sm:whitespace-nowrap">{{ $message }}</span> @enderror
+                    </div>
+                @endforeach
+                <button wire:click="applyCustomRange" class="{{ $salesFilter === 'custom' ? 'btn-primary' : 'btn-secondary' }} !py-2 col-span-2">Terapkan</button>
+            </div>
         </div>
     </div>
-    @error('customStart') <span class="field-error">{{ $message }}</span> @enderror
-    @error('customEnd') <span class="field-error">{{ $message }}</span> @enderror
 
     <div class="bento grid-cols-2 md:grid-cols-4 xl:grid-cols-12">
         <!-- Pendapatan -->
